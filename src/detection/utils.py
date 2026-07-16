@@ -1,0 +1,295 @@
+"""
+Utilities for star detection.
+
+Provides methods for pixel analysis, contrast calculation,
+and color → MIDI note conversions.
+"""
+
+from typing import Tuple, List, Set
+from src.models.color import color_to_note, brightness_to_velocity, intensify_color
+
+
+class DetectionUtils:
+    """Utilities for detecting and analyzing stars in images."""
+
+    def __init__(
+        self,
+        white_threshold_v: float = 0.65,
+        white_threshold_s: float = 0.2,
+        ring_radius: int = 2,
+        contrast_threshold: int = 60,
+        brightness_threshold: int = 180,
+    ):
+        """
+        Initializes detection utilities.
+
+        Args:
+            white_threshold_v: HSV value threshold for white (0-1)
+            white_threshold_s: HSV saturation threshold for white (0-1)
+            ring_radius: Comparison ring radius (pixels)
+            contrast_threshold: Minimum contrast between center and ring (0-255)
+            brightness_threshold: Minimum absolute RGB brightness (0-255)
+        """
+        self.white_threshold_v = white_threshold_v
+        self.white_threshold_s = white_threshold_s
+        self.ring_radius = ring_radius
+        self.contrast_threshold = contrast_threshold
+        self.brightness_threshold = brightness_threshold
+
+    # ========================================================================
+    # DETECTION OF WHITE/BRIGHT PIXELS
+    # ========================================================================
+
+    def is_white_pixel(self, rgb: Tuple[int, int, int]) -> bool:
+        """
+        Detects if a pixel is white or bright.
+
+        A pixel is considered white/bright if:
+        1. Its absolute brightness >= brightness_threshold, OR
+        2. It is desaturated white (v >= white_threshold_v AND s <= white_threshold_s)
+
+        Args:
+            rgb: Tuple (r, g, b) with values 0-255
+
+        Returns:
+            True if the pixel is white/bright
+        """
+        brightness = sum(rgb) / 3
+
+        # Criterio 1: Brillo absoluto
+        if brightness >= self.brightness_threshold:
+            return True
+
+        # Criterio 2: Blanco puro desaturado
+        from src.models.color import rgb_to_hsv
+
+        h, s, v = rgb_to_hsv(rgb)
+        return (v >= self.white_threshold_v) and (s <= self.white_threshold_s)
+
+    # ========================================================================
+    # NEIGHBORHOOD ANALYSIS (RING)
+    # ========================================================================
+
+    def get_neighbors_8(
+        self, x: int, y: int, width: int, height: int
+    ) -> List[Tuple[int, int]]:
+        """
+        Returns the 8 neighbors of a pixel (3x3 without the center).
+
+        Args:
+            x, y: Pixel coordinates
+            width, height: Image dimensions
+
+        Yields:
+            Tuples (nx, ny) of valid neighboring pixels
+        """
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < width and 0 <= ny < height:
+                    yield nx, ny
+
+    def get_ring_colors(
+        self,
+        pixels,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+    ) -> List[Tuple[int, int, int]]:
+        """
+        Returns all colors in the ring around a pixel.
+
+        The ring is a square of radius self.ring_radius around the pixel.
+
+        Args:
+            pixels: PIL.ImageDraw object with pixel data (pixels[x, y])
+            x, y: Ring center
+            width, height: Image dimensions
+
+        Returns:
+            List of (r, g, b) tuples
+        """
+        ring = []
+        R = self.ring_radius
+        for dx in range(-R, R + 1):
+            for dy in range(-R, R + 1):
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < width and 0 <= ny < height:
+                    ring.append(pixels[nx, ny])
+        return ring
+
+    def calculate_ring_brightness(
+        self,
+        pixels,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+    ) -> float:
+        """
+        Calculates the average brightness of the ring around a pixel.
+
+        Args:
+            pixels: PIL object with pixel data
+            x, y: Ring center
+            width, height: Dimensions
+
+        Returns:
+            Average brightness (0-255)
+        """
+        ring = self.get_ring_colors(pixels, x, y, width, height)
+        if not ring:
+            return 0
+        avg_brightness = sum(sum(pixel) / 3 for pixel in ring) / len(ring)
+        return avg_brightness
+
+    def has_sufficient_contrast(
+        self,
+        pixels,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+    ) -> bool:
+        """
+        Verifies if there is sufficient contrast between center and ring.
+
+        Contrast is defined as: center_brightness - ring_brightness
+
+        Args:
+            pixels: PIL object with data
+            x, y: Pixel to verify
+            width, height: Dimensions
+
+        Returns:
+            True if contrast >= contrast_threshold
+        """
+        center_brightness = sum(pixels[x, y]) / 3
+        ring_brightness = self.calculate_ring_brightness(pixels, x, y, width, height)
+        contrast = center_brightness - ring_brightness
+        return contrast >= self.contrast_threshold
+
+    # ========================================================================
+    # FLOOD-FILL SEARCH
+    # ========================================================================
+
+    def find_brightest_from(
+        self,
+        pixels,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        visited: Set[Tuple[int, int]],
+    ) -> Tuple[Tuple[int, int], int]:
+        """
+        Searches for the brightest pixel in a connected region of white pixels.
+
+        Uses flood-fill to find all connected white pixels,
+        marks the brightest one and returns its position and total area.
+
+        Args:
+            pixels: PIL object with data
+            x, y: Starting point
+            width, height: Dimensions
+            visited: Set of already visited pixels (modified)
+
+        Returns:
+            Tuple ((bx, by), area):
+                - (bx, by): Coordinates of the brightest pixel
+                - area: Number of pixels in the region
+        """
+        stack = [(x, y)]
+        brightest = (x, y)
+        max_brightness = sum(pixels[x, y]) / 3
+        area = 0
+
+        while stack:
+            cx, cy = stack.pop()
+            if (cx, cy) in visited:
+                continue
+            visited.add((cx, cy))
+            area += 1
+
+            brightness = sum(pixels[cx, cy]) / 3
+            if brightness > max_brightness:
+                brightest = (cx, cy)
+                max_brightness = brightness
+
+            # Agregar vecinos blancos al stack
+            for nx, ny in self.get_neighbors_8(cx, cy, width, height):
+                if (nx, ny) not in visited and self.is_white_pixel(pixels[nx, ny]):
+                    stack.append((nx, ny))
+
+        return brightest, area
+
+    # ========================================================================
+    # COLOR/POSITION → MIDI CONVERSIONS
+    # ========================================================================
+
+    def get_pan(self, width: int, x: int) -> float:
+        """
+        Convierte coordenada X a paneo MIDI (0-127).
+
+        Args:
+            width: Ancho de la imagen
+            x: X position of the pixel
+
+        Returns:
+            Paneo MIDI (0.0-127.0)
+        """
+        return (x * 127) / width
+
+    def color_to_note(self, rgb: Tuple[int, int, int]) -> int:
+        """
+        Convierte RGB a nota MIDI.
+
+        Delega a src.models.color.color_to_note()
+
+        Args:
+            rgb: Tupla (r, g, b)
+
+        Returns:
+            Nota MIDI (36-51)
+        """
+        return color_to_note(rgb)
+
+    def brightness_to_velocity(self, rgb: Tuple[int, int, int]) -> int:
+        """
+        Convierte brillo RGB a velocidad MIDI.
+
+        Delega a src.models.color.brightness_to_velocity()
+
+        Args:
+            rgb: Tupla (r, g, b)
+
+        Returns:
+            Velocidad MIDI (20-127)
+        """
+        return brightness_to_velocity(rgb)
+
+    def intensify_color(
+        self,
+        rgb: Tuple[int, int, int],
+        sat_boost: float = 0.6,
+        val_drop: float = 0.2,
+    ) -> Tuple[int, int, int]:
+        """
+        Intensifies a color to make it more vibrant.
+
+        Delega a src.models.color.intensify_color()
+
+        Args:
+            rgb: Tupla (r, g, b)
+            sat_boost: Saturation increase
+            val_drop: Value reduction
+
+        Returns:
+            Tupla (r, g, b) intensificada
+        """
+        return intensify_color(rgb, sat_boost, val_drop)
