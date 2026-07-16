@@ -5,7 +5,6 @@ Centralizes the creation and management of MIDI connections.
 
 import mido
 from typing import Optional, List
-from contextlib import contextmanager
 
 
 class MidiDevice:
@@ -27,7 +26,8 @@ class MidiDevice:
     
     def get_or_create_output(
         self, 
-        name: str = "kosmos", 
+        name: str = "kosmos",
+        virtual: bool = True
     ):
         """
         Gets or creates a MIDI output port.
@@ -45,7 +45,7 @@ class MidiDevice:
         
         # Create new port
         try:
-            outport = mido.open_output(name)
+            outport = mido.open_output(name, virtual=True)
             self.ports[name] = outport
             
             self.virtual_outputs.append(name)

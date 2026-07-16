@@ -23,5 +23,8 @@
 	},
 	"staturation": {
 		"boost": 1.5
+	},
+	"images": {
+		"saturation_boost" : 1.5
 	}
 }

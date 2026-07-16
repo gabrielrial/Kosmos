@@ -1,26 +1,49 @@
-from image_procesing import ImageProcessor
-from src.detection import StarDetector, DetectionUtils
-from PIL import Image
+from PIL import Image, ImageFilter
 from models.images import Images
 
 class ImagePipeLine:
 
-    self.images = Images | None
+    def __init__(self, image_path: str):
 
-    def __int__(self, image_path: str):
+        self.image_path = image_path
 
-        self.img = Image.open(image_path).convert("RGB")
-        self.width, self.height = self.img.size
+        self.images = Images()
 
-        self.images = Images
         
     def _process_image(self) -> Images:
-        """
+        """ImageFilter
         Processes the image: magic wand, detection, and color analysis.
-        
+        ImageFilter
         4. Detects starts on simplified image, and takes color from staruated image
         5. Extracts dominants colors for bass.
         """
+
+        self.loads_img()
+        self.blurs_img()
+
+        return self.images
+       
+	    #self.saturate_img()
+	
+	
+
+    def loads_img(self) -> None:
+        """
+            Loads the original image as Image PIL class, ang gets its attributes.
+        """
+        self.images.original_img = Image.open(self.image_path).convert("RGB")
+        self.images.width, self.images.height = self.images.original_img.size
+    
+    def blurs_img(self) -> None:
+        self.images.blurred_img = self.images.original_img.filter(ImageFilter.BoxBlur(0))
+        self.images.blurred_img.show()
+          
+        
+        
+	
+	#def saturates_img(self):
+    
+"""
         
         print("\n[Image Processing]")
 
@@ -29,7 +52,7 @@ class ImagePipeLine:
         # 1. Saturate original image (for more vibrant colors)
         print("  - Saturating original image...")
         saturated_path = str(self.output_dir / "saturated.png")
-        saturated_img = processor.save_saturated_image(
+        saturated_imgblur_img = processor.save_saturated_image(
             saturated_path,
             saturation_boost=1.5  # 50% more saturation
         )
@@ -64,7 +87,15 @@ class ImagePipeLine:
         # Create detector with configuration parameters
         utils = DetectionUtils(
             white_threshold_v=self.config.star_detector.white_threshold_v,
-            white_threshold_s=self.config.star_detector.white_threshold_s,
+            
+		# Opens a image in RGB mode
+		im = Image.open(r"geek.jpg")
+
+		# Blurring the image
+		im1 = im.filter(ImageFilter.BoxBlur(4))
+
+		# Shows the image in image viewer
+		im1.show()white_threshold_s=self.config.star_detector.white_threshold_s,
             ring_radius=self.config.star_detector.ring_radius,
             contrast_threshold=self.config.star_detector.contrast_threshold,
             brightness_threshold=self.config.star_detector.brightness_threshold,
@@ -83,3 +114,4 @@ class ImagePipeLine:
         # 5. Extract dominant colors for the bass
         print("  - Preparing colors for bass...")
         self.dominant_colors = dominant
+		"""

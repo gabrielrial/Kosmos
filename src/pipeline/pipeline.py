@@ -13,7 +13,7 @@ from typing import Tuple, List, Optional
 
 from config.config import ConfigLoader
 from setup.midi import MidiSetup
-from setup.image import ImageService
+from image.img_pipeline import ImagePipeLine
 from midi.device import MidiDevice
 from midi.tempo import Tempo
 from models.images import Images
@@ -73,7 +73,7 @@ class ImageToMidi:
 
             MidiSetup(self).init()
 
-            self.images =  ImageService(self.image_path)
+            self.images =  ImagePipeLine(self.image_path)._process_image()
 
 '''
             PlayerFactory(self).run()

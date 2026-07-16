@@ -7,7 +7,7 @@ from typing import Optional, Any, Dict
 
 from error.errors import ERR_FILE_NOT_FOUND
 
-@dataclasee
+@dataclass
 class Images:
     """Configuration for images"""
     saturation_boost: float = 1.5
@@ -59,6 +59,7 @@ class Config:
     predominant_color: PredominantColorConfig
     tempo: TempoConfig
     instrument: InstrumentConfig
+    images: Images
 
     # Paths (optional, for easier testing)
     image_path: Optional[str] = None
@@ -138,8 +139,8 @@ class Config:
                 ),
             ),
             images = Images(
-                boost=data.get("saturation", {}).get("boost", 1.5)
-            )
+                saturation_boost=data.get("saturation", {}).get("saturation_boost", 1.5)
+            ),
             
             image_path=data.get("image_path"),
             output_dir=data.get("output_dir"),
