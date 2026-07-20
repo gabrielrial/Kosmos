@@ -19,12 +19,12 @@ class StarDetector:
     
     # Add config file
 
-    def __init__(self, images: Images, constelation: list[Stars], config: Config):
+    def __init__(self, images: Images, constelation: Stars, config: Config):
         self.images = images
         self.constelation = constelation
-        self.utils = DetectionUtils
+        self.utils = DetectionUtils(config.star_detector)
 
-    def detect(self) -> Stars:
+    def detect(self) -> None:
         """
         Detects stars in a processed image.
         
@@ -48,14 +48,14 @@ class StarDetector:
     
         visited = set()
         pixels = self.images.original_img.load()
-        width, height = self.image.width, self.image.height
+        width, height = self.images.width, self.images.height
         
-        # If no color image is provided, use the same as for detection
-        if color_source_image is self.images.saturated_img:
-            color_source_image = self.images.orginal_img
+        color_source_image = self.images.original_img
+
+        if self.images.saturated_img is not None:
+            color_source_image = self.images.saturated_img
         
         color_pixels = color_source_image.load()
-        color_width, color_height = color_source_image.size
 
         # Iterate through each pixel
         for y in range(height):
@@ -77,12 +77,7 @@ class StarDetector:
                 #    continue
 
                 # Get pixel data (color from color_source_image)
-                rgb = color_pixels[bx, by]  # Tomar color de la imagen de colores
-                note = self.utils.color_to_note(
-                    self.utils.intensify_color(rgb)
-                )
 
-                velocity = self.utils.brightness_to_velocity(rgb)
                 pan = self.utils.get_pan(width, bx)
                 
                 note, velocity = self.utils.color_to_note_and_velocity(bx, by, self.images.saturated_img)
@@ -92,29 +87,29 @@ class StarDetector:
                     star = SmallStar(
                         x=bx,
                         y=by,
-                        color=note,
-                        brightness=velocity,
+                        note=note,
+                        velocity=velocity,
                         pan=pan,
                         area=area,
-                        rgb_color=rgb,  # Guardar color original
+                        rgb_color=color_pixels[bx, by],  # Guardar color original
                     )
-                    self.small_stars.append(star)
+                    self.constelation.small_stars.append(star)
                     
                     # Guardar preview cada 4 estrellas
                     #if self.save_previews and len(self.small_stars) % 100 == 0:
                     #    self._save_star_preview(image, bx, by, is_big_star=False)
                 
-                elif 30 <= area < 70:
+                elif 30 <= area < 1000:
                     star = BigStar(
                         x=bx,
                         y=by,
-                        color=note,
-                        brightness=velocity,
+                        note=note,
+                        velocity=velocity,
                         pan=pan,
                         area=area,
-                        rgb_color=rgb,  # Guardar color original
+                        rgb_color=color_pixels[bx, by],  # Guardar color original
                     )
-                    self.big_stars.append(star)
+                    self.constelation.big_stars.append(star)
                 
                     
                     # Guardar preview cada 75 estrellas
@@ -124,7 +119,6 @@ class StarDetector:
         # Guardar imagen con estrellas sobre fondo negro
         #self._save_stars_image(image, width, height)
         
-        return self.small_stars, self.big_stars
     
     def _save_star_preview(
         self,

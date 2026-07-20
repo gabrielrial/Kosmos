@@ -7,34 +7,14 @@ and color → MIDI note conversions.
 
 from typing import Tuple, List, Set
 from PIL import Image
+from config.config import StarDetectorConfig
 
 
 class DetectionUtils:
     """Utilities for detecting and analyzing stars in images."""
 
-    def __init__(
-        self,
-        white_threshold_v: float = 0.65,
-        white_threshold_s: float = 0.2,
-        ring_radius: int = 2,
-        contrast_threshold: int = 60,
-        brightness_threshold: int = 180,
-    ):
-        """
-        Initializes detection utilities.
-
-        Args:
-            white_threshold_v: HSV value threshold for white (0-1)
-            white_threshold_s: HSV saturation threshold for white (0-1)
-            ring_radius: Comparison ring radius (pixels)
-            contrast_threshold: Minimum contrast between center and ring (0-255)
-            brightness_threshold: Minimum absolute RGB brightness (0-255)
-        """
-        self.white_threshold_v = white_threshold_v
-        self.white_threshold_s = white_threshold_s
-        self.ring_radius = ring_radius
-        self.contrast_threshold = contrast_threshold
-        self.brightness_threshold = brightness_threshold
+    def __init__(self, config: StarDetectorConfig):
+        self.config = config
 
     # ========================================================================
     # DETECTION OF WHITE/BRIGHT PIXELS
@@ -57,7 +37,7 @@ class DetectionUtils:
         brightness = sum(rgb) / 3
 
         # Criterio 1: Brillo absoluto
-        if brightness >= self.brightness_threshold:
+        if brightness >= self.config.brightness_threshold:
             return True
 
     # ========================================================================
@@ -65,8 +45,7 @@ class DetectionUtils:
     # ========================================================================
 
     def get_neighbors_8(
-        self, x: int, y: int, width: int, height: int
-    ) -> List[Tuple[int, int]]:
+        self, x: int, y: int, width: int, height: int) -> List[Tuple[int, int]]:
         """
         Returns the 8 neighbors of a pixel (3x3 without the center).
 
@@ -107,7 +86,7 @@ class DetectionUtils:
             List of (r, g, b) tuples
         """
         ring = []
-        R = self.ring_radius
+        R = self.config.ring_radius
         for dx in range(-R, R + 1):
             for dy in range(-R, R + 1):
                 if dx == 0 and dy == 0:
@@ -166,7 +145,7 @@ class DetectionUtils:
         center_brightness = sum(pixels[x, y]) / 3
         ring_brightness = self.calculate_ring_brightness(pixels, x, y, width, height)
         contrast = center_brightness - ring_brightness
-        return contrast >= self.contrast_threshold
+        return contrast >= self.config.contrast_threshold
 
     # ========================================================================
     # FLOOD-FILL SEARCH
@@ -251,7 +230,7 @@ class DetectionUtils:
                 - MIDI note (36-71) -> C2 - B5
                 - MIDI velocity (40-100)
         """
-        r,g,b = saturated_img[bx, by]
+        r,g,b = saturated_img.getpixel([bx, by])
 
         # Average brightness (0-255)
         brightness = (r + g + b) / 3
@@ -306,23 +285,3 @@ class DetectionUtils:
 
         return velocity
 
-    def intensify_color(
-        self,
-        rgb: Tuple[int, int, int],
-        sat_boost: float = 0.6,
-        val_drop: float = 0.2,
-    ) -> Tuple[int, int, int]:
-        """
-        Intensifies a color to make it more vibrant.
-
-        Delega a src.models.color.intensify_color()
-
-        Args:
-            rgb: Tupla (r, g, b)
-            sat_boost: Saturation increase
-            val_drop: Value reduction
-
-        Returns:
-            Tupla (r, g, b) intensificada
-        """
-        return intensify_color(rgb, sat_boost, val_drop)

@@ -55,7 +55,7 @@ class ImageToMidi:
         #self.bass_player: ColorBassPlayer | None
         #
         ## Data
-        self.stars: list[Stars] = []
+        self.stars: Stars = Stars()
         #self.dominant_colors: List = []
         #
         ## Status
@@ -80,7 +80,9 @@ class ImageToMidi:
 
 
             # Start Detector
-            StarDetector(self.images, self.stars, self.config)
+            StarDetector(self.images, self.stars, self.config).detect()
+            print(f"Small stars count: {self.stars.small_stars.__len__()}")
+            print(f"Big stars count: {self.stars.big_stars.__len__()}")
  
             
 
