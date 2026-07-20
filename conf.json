@@ -22,9 +22,9 @@
 		"stars_speed_beats": 0.5
 	},
 	"staturation": {
-		"boost": 1.5
+		"boost": 1.2
 	},
 	"images": {
-		"saturation_boost" : 1.5
+		"saturation_boost" : 1.2
 	}
 }

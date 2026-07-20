@@ -1,4 +1,5 @@
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageEnhance
+import PIL
 from models.images import Images
 
 class ImagePipeLine:
@@ -20,10 +21,11 @@ class ImagePipeLine:
 
         self.loads_img()
         self.blurs_img()
+        self.saturate_img()
+
 
         return self.images
        
-	    #self.saturate_img()
 	
 	
 
@@ -36,12 +38,23 @@ class ImagePipeLine:
     
     def blurs_img(self) -> None:
         self.images.blurred_img = self.images.original_img.filter(ImageFilter.BoxBlur(0))
-        self.images.blurred_img.show()
+        #self.images.blurred_img.show()
+
+    def saturate_img(self) -> None:
+        
+        sturate = PIL.ImageEnhance.Color(self.images.original_img)
+        self.images.saturated_img  = sturate.enhance(1.2)
+        #self.images.saturated_img.show()
+
+    # def play_effect(self) -> None:
+    #     play = self.images.original_img
+    #     play = play.point(lambda i: i * 20)
+    #     play.show()
           
         
         
 	
-	#def saturates_img(self):
+	# def saturates_img(self):
     
 """
         

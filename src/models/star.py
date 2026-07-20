@@ -1,33 +1,39 @@
-"""
-x = int
-y = int
-note = int
-velocity = [0 - 127]
-pan = [0 - 127]
-rgb_color = tuple (r,g,b)
-duration = float
-"""
+from dataclasses import dataclass, field
 
 
-class SmallStar:
-    def __init__(self, x, y, color, brightness, pan, area, duration=0, rgb_color=None):
-        self.x = x
-        self.y = y
-        self.note = color  # enhanced color (MIDI note)
-        self.velocity = max(1, min(127, int(brightness)))[0 - 127]
-        self.pan = pan  # int - midi [0 - 127]
-        self.area = area
-        self.rgb_color = rgb_color  # tuple (r, g, b) with original color
-        self.duration = duration
+@dataclass
+class Star:
+    """
+        Definition of a star.
+    """
+    x: int
+    y: int
+    note: int
+    velocity: int
+    pan: int
+    area: float
+    duration: float = 0.0
+    rgb_color: tuple[int, int, int] | None = None
+
+    def __post_init__(self):
+        self.velocity = max(1, min(127, int(self.velocity)))
 
 
-class BigStar:
-    def __init__(self, x, y, color, brightness, pan, area, duration=0, rgb_color=None):
-        self.x = x  # normalize to 0-1 if desired for position (?)
-        self.y = y
-        self.note = color  # enhanced color (MIDI note)
-        self.velocity = max(1, min(127, int(brightness)))
-        self.pan = pan  # int - midi [0 - 127]
-        self.area = area
-        self.rgb_color = rgb_color  # tuple (r, g, b) with original color
-        self.duration = duration
+class SmallStar(Star):
+    pass
+
+
+class BigStar(Star):
+    pass
+
+
+@dataclass
+class Stars:
+    """
+        Constelation of big and small stars.
+
+        small_stars: []
+        big_stars: []
+    """
+    small_stars: list[SmallStar] = field(default_factory=list)
+    big_stars: list[BigStar] = field(default_factory=list)

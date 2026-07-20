@@ -1,8 +1,5 @@
 from PIL import Image
 
-from image.image_procesing import ImageProcessor
-from src.detection import StarDetector, DetectionUtils
-
 
 class ImageUtils:
 

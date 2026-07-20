@@ -6,36 +6,125 @@ Detects bright regions and classifies them as small or large stars.
 
 from typing import Tuple, List
 from PIL import Image, ImageDraw
-from src.detection.utils import DetectionUtils
-from src.models.star import SmallStar, BigStar
-from src.image.image_procesing import ImageProcessor
+from detection.utils import DetectionUtils
+from models.star import SmallStar, BigStar
+from image.image_procesing import ImageProcessor
+from models.images import Images
+from models.star import Stars, SmallStar, BigStar
+from config.config import Config 
 
 
 class StarDetector:
     """Detects and classifies stars in images."""
     
-    def __init__(
-        self,
-        utils: DetectionUtils = None,
-        save_previews: bool = False,
-        preview_dir: str = ".",
+    # Add config file
 
-    ):
+    def __init__(self, images: Images, constelation: list[Stars], config: Config):
+        self.images = images
+        self.constelation = constelation
+        self.utils = DetectionUtils
+
+    def detect(self) -> Stars:
         """
-        Initializes the star detector.
+        Detects stars in a processed image.
+        
+        Iterates through each pixel looking for white/bright pixels in the detection image.
+        For each one, searches for the brightest connected region and classifies it by area.
+        
+        RGB colors are obtained from color_source_image (or from image if not provided).
+        
+        Classification criteria:
+        - SmallStar: 0 < area < 10 pixels
+        - BigStar: 10 <= area < 20 pixels
         
         Args:
-            utils: DetectionUtils instance (default is created)
-            save_previews: Whether to save preview images of detected stars
-            preview_dir: Directory to save previews
+            image: Image to detect bright pixels (typically simplified)
+            color_source_image: Image to get RGB colors from (optional, defaults to 'image')
+                                  Useful for getting colors from saturated original image
+        
+        Returns:
+            Tuple (small_stars, big_stars)
         """
-        self.images: ImageProcessor # estaba aca
+    
+        visited = set()
+        pixels = self.images.original_img.load()
+        width, height = self.image.width, self.image.height
+        
+        # If no color image is provided, use the same as for detection
+        if color_source_image is self.images.saturated_img:
+            color_source_image = self.images.orginal_img
+        
+        color_pixels = color_source_image.load()
+        color_width, color_height = color_source_image.size
 
-        self.utils = utils or DetectionUtils()
-        self.save_previews = save_previews
-        self.preview_dir = preview_dir
-        self.small_stars: List[SmallStar] = []
-        self.big_stars: List[BigStar] = []
+        # Iterate through each pixel
+        for y in range(height):
+            for x in range(width):
+                if (x, y) in visited:
+                    continue
+                if not self.utils.is_white_pixel(pixels[x, y]):
+                    continue
+
+                # Find the brightest connected region
+                (bx, by), area = self.utils.find_brightest_from(
+                    pixels, x, y, width, height, visited
+                )
+
+                # Verificar contraste
+                #if not self.utils.has_sufficient_contrast(
+                #    pixels, bx, by, width, height
+                #):
+                #    continue
+
+                # Get pixel data (color from color_source_image)
+                rgb = color_pixels[bx, by]  # Tomar color de la imagen de colores
+                note = self.utils.color_to_note(
+                    self.utils.intensify_color(rgb)
+                )
+
+                velocity = self.utils.brightness_to_velocity(rgb)
+                pan = self.utils.get_pan(width, bx)
+                
+                note, velocity = self.utils.color_to_note_and_velocity(bx, by, self.images.saturated_img)
+                
+                # Classify by area
+                if 3 < area < 30:
+                    star = SmallStar(
+                        x=bx,
+                        y=by,
+                        color=note,
+                        brightness=velocity,
+                        pan=pan,
+                        area=area,
+                        rgb_color=rgb,  # Guardar color original
+                    )
+                    self.small_stars.append(star)
+                    
+                    # Guardar preview cada 4 estrellas
+                    #if self.save_previews and len(self.small_stars) % 100 == 0:
+                    #    self._save_star_preview(image, bx, by, is_big_star=False)
+                
+                elif 30 <= area < 70:
+                    star = BigStar(
+                        x=bx,
+                        y=by,
+                        color=note,
+                        brightness=velocity,
+                        pan=pan,
+                        area=area,
+                        rgb_color=rgb,  # Guardar color original
+                    )
+                    self.big_stars.append(star)
+                
+                    
+                    # Guardar preview cada 75 estrellas
+                    #if self.save_previews and len(self.big_stars) % 75 == 0:
+                    #    self._save_star_preview(image, bx, by, is_big_star=True)
+        
+        # Guardar imagen con estrellas sobre fondo negro
+        #self._save_stars_image(image, width, height)
+        
+        return self.small_stars, self.big_stars
     
     def _save_star_preview(
         self,
@@ -113,105 +202,6 @@ class StarDetector:
         img_black.save(output_path)
         print(f"[OK] Stars image saved to: {output_path}")
     
-    def detect(self, image, color_source_image=None) -> Tuple[List[SmallStar], List[BigStar]]:
-        """
-        Detects stars in a processed image.
-        
-        Iterates through each pixel looking for white/bright pixels in the detection image.
-        For each one, searches for the brightest connected region and classifies it by area.
-        
-        RGB colors are obtained from color_source_image (or from image if not provided).
-        
-        Classification criteria:
-        - SmallStar: 0 < area < 10 pixels
-        - BigStar: 10 <= area < 20 pixels
-        
-        Args:
-            image: Image to detect bright pixels (typically simplified)
-            color_source_image: Image to get RGB colors from (optional, defaults to 'image')
-                                  Useful for getting colors from saturated original image
-        
-        Returns:
-            Tuple (small_stars, big_stars)
-        """
-        self.small_stars = []
-        self.big_stars = []
-        visited = set()
-        pixels = image.load()
-        width, height = image.size
-        
-        # If no color image is provided, use the same as for detection
-        if color_source_image is None:
-            color_source_image = image
-        
-        color_pixels = color_source_image.load()
-        color_width, color_height = color_source_image.size
-        
-        # Iterate through each pixel
-        for y in range(height):
-            for x in range(width):
-                if (x, y) in visited:
-                    continue
-                if not self.utils.is_white_pixel(pixels[x, y]):
-                    continue
-                
-                # Find the brightest connected region
-                (bx, by), area = self.utils.find_brightest_from(
-                    pixels, x, y, width, height, visited
-                )
-                
-                # Verificar contraste
-                if not self.utils.has_sufficient_contrast(
-                    pixels, bx, by, width, height
-                ):
-                    continue
-                
-                # Get pixel data (color from color_source_image)
-                rgb = color_pixels[bx, by]  # Tomar color de la imagen de colores
-                note = self.utils.color_to_note(
-                    self.utils.intensify_color(rgb)
-                )
-                velocity = self.utils.brightness_to_velocity(rgb)
-                pan = self.utils.get_pan(width, bx)
-                
-                # Classify by area
-                if 3 < area < 30:
-                    star = SmallStar(
-                        x=bx,
-                        y=by,
-                        color=note,
-                        brightness=velocity,
-                        pan=pan,
-                        area=area,
-                        rgb_color=rgb,  # Guardar color original
-                    )
-                    self.small_stars.append(star)
-                    
-                    # Guardar preview cada 4 estrellas
-                    #if self.save_previews and len(self.small_stars) % 100 == 0:
-                    #    self._save_star_preview(image, bx, by, is_big_star=False)
-                
-                elif 30 <= area < 70:
-                    star = BigStar(
-                        x=bx,
-                        y=by,
-                        color=note,
-                        brightness=velocity,
-                        pan=pan,
-                        area=area,
-                        rgb_color=rgb,  # Guardar color original
-                    )
-                    self.big_stars.append(star)
-                
-                    
-                    # Guardar preview cada 75 estrellas
-                    #if self.save_previews and len(self.big_stars) % 75 == 0:
-                    #    self._save_star_preview(image, bx, by, is_big_star=True)
-        
-        # Guardar imagen con estrellas sobre fondo negro
-        #self._save_stars_image(image, width, height)
-        
-        return self.small_stars, self.big_stars
     
     def summary(self) -> dict:
         """

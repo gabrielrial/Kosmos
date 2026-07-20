@@ -17,6 +17,8 @@ from image.img_pipeline import ImagePipeLine
 from midi.device import MidiDevice
 from midi.tempo import Tempo
 from models.images import Images
+from detection.star_detector import StarDetector
+from models.star import Stars
 
 
 
@@ -53,8 +55,7 @@ class ImageToMidi:
         #self.bass_player: ColorBassPlayer | None
         #
         ## Data
-        #self.small_stars: List = []
-        #self.big_stars: List = []
+        self.stars: list[Stars] = []
         #self.dominant_colors: List = []
         #
         ## Status
@@ -73,7 +74,15 @@ class ImageToMidi:
 
             MidiSetup(self).init()
 
+            # Image Processor
+            ## Check and capture exception if it is requiere
             self.images =  ImagePipeLine(self.image_path)._process_image()
+
+
+            # Start Detector
+            StarDetector(self.images, self.stars, self.config)
+ 
+            
 
 '''
             PlayerFactory(self).run()

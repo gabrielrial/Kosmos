@@ -39,7 +39,7 @@ class ImageProcessor:
         self.images: Images | None
 
     
-    def image_processor_pipeline(self):
-        ImageUtils.saturate_image(self.pipeline.image_pathm, self.pipeline.)
-        self._magic_wand(self.pipeline.image_path)
-        self._reduce_to_dominant_colors(self.pipeline.image_path)
+    # def image_processor_pipeline(self):
+    #     ImageUtils.saturate_image(self.pipeline.image_pathm, self.pipeline.)
+    #     self._magic_wand(self.pipeline.image_path)
+    #     self._reduce_to_dominant_colors(self.pipeline.image_path)

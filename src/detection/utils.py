@@ -6,7 +6,7 @@ and color → MIDI note conversions.
 """
 
 from typing import Tuple, List, Set
-from src.models.color import color_to_note, brightness_to_velocity, intensify_color
+from PIL import Image
 
 
 class DetectionUtils:
@@ -59,12 +59,6 @@ class DetectionUtils:
         # Criterio 1: Brillo absoluto
         if brightness >= self.brightness_threshold:
             return True
-
-        # Criterio 2: Blanco puro desaturado
-        from src.models.color import rgb_to_hsv
-
-        h, s, v = rgb_to_hsv(rgb)
-        return (v >= self.white_threshold_v) and (s <= self.white_threshold_s)
 
     # ========================================================================
     # NEIGHBORHOOD ANALYSIS (RING)
@@ -245,19 +239,52 @@ class DetectionUtils:
         """
         return (x * 127) / width
 
-    def color_to_note(self, rgb: Tuple[int, int, int]) -> int:
+    def color_to_note_and_velocity(self, bx: int, by: int, saturated_img: Image) -> Tuple[int, int]:
         """
-        Convierte RGB a nota MIDI.
-
-        Delega a src.models.color.color_to_note()
+        Converts an RGB color to a MIDI note and velocity.
 
         Args:
-            rgb: Tupla (r, g, b)
+            rgb: (r, g, b) tuple.
 
         Returns:
-            Nota MIDI (36-51)
+            A tuple containing:
+                - MIDI note (36-71) -> C2 - B5
+                - MIDI velocity (40-100)
         """
-        return color_to_note(rgb)
+        r,g,b = saturated_img[bx, by]
+
+        # Average brightness (0-255)
+        brightness = (r + g + b) / 3
+
+        # Map brightness to note (0-255 -> 36-71)
+        note = int(brightness * 35 / 255) + 36
+
+        # Clamp brightness so that anything darker than (50, 50, 50)
+        # is treated as the minimum velocity.
+        brightness = max(50, min(brightness, 255))
+
+        # Map brightness (50-255) -> velocity (40-100)
+        velocity = int((brightness - 50) * 60 / (255 - 50)) + 40
+
+        return note, velocity
+
+    def color_to_note(self, rgb: Tuple[int, int, int]) -> int:
+        """
+        Converts an RGB color to a MIDI note.
+
+        Args:
+            rgb: (r, g, b) tuple.
+
+        Returns:
+            MIDI note (36-71) -> C2 - B5.
+        """
+        r, g, b = rgb
+
+        brightness = (r + g + b) / 3
+
+        note = int(brightness * 35 / 255) + 36
+
+        return note
 
     def brightness_to_velocity(self, rgb: Tuple[int, int, int]) -> int:
         """
@@ -269,9 +296,15 @@ class DetectionUtils:
             rgb: Tupla (r, g, b)
 
         Returns:
-            Velocidad MIDI (20-127)
+            Velocidad MIDI (40-127)
         """
-        return brightness_to_velocity(rgb)
+        r, g, b = rgb
+
+        brightness = (r + g + b) / 3
+
+        velocity = int(brightness * 87 / 255) + 40
+
+        return velocity
 
     def intensify_color(
         self,
