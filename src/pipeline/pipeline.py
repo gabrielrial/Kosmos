@@ -49,7 +49,8 @@ class ImageToMidi:
         #
         ## Players
         self.midi: MidiSetup
-        self.star_player: StarMidiPlayer | None
+        self.small_star_player: StarMidiPlayer | None
+        self.big_star_player: StarMidiPlayer | None
         # self.bass_player: ColorBassPlayer | None
         #
         ## Data
@@ -81,6 +82,8 @@ class ImageToMidi:
         print(f"Big stars count: {self.stars.big_stars.__len__()}")
 
         self._setup_midi()
+        self._start_playback()
+        self.wait()
 
     '''
             self._start_playback()
@@ -199,11 +202,25 @@ class ImageToMidi:
     '''
 
     def _setup_midi(self):
-        self.star_player = StarMidiPlayer(
+        self.small_star_player = StarMidiPlayer(
             stars=self.stars.small_stars,
             outport=self.midi.outport["kosmos_stars"],
             channel_base=3,
             speed_beats=self.config.instrument.stars_speed_beats,
             tempo=self.midi.tempo,
             shuffle=True,
-        ).run()
+        )
+
+        self.big_star_player = StarMidiPlayer(
+            stars=self.stars.big_stars,
+            outport=self.midi.outport["kosmos_stars"],
+            channel_base=5,
+            speed_beats=self.config.instrument.stars_speed_beats,
+            tempo=self.midi.tempo,
+            shuffle=True,
+        )
+
+    def _start_playback(self):
+
+        self.small_star_player.start()
+        self.big_star_player.start()

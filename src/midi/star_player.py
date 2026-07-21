@@ -7,9 +7,11 @@ import time
 import random
 import mido
 from typing import List, Optional
+from models.star import Star, Stars
+from threading import Thread
 
 
-class StarMidiPlayer():
+class StarMidiPlayer(Thread):
     """
     Plays stars detected in images as MIDI notes.
 
@@ -29,7 +31,7 @@ class StarMidiPlayer():
 
     def __init__(
         self,
-        stars: List,
+        stars: Stars,
         outport,
         channel_base: int = 3,
         speed_beats: float = 800000,
@@ -53,12 +55,16 @@ class StarMidiPlayer():
         self.shuffle = shuffle
         self.channel_base = channel_base
         self.outport = outport
-
+        super().__init__()
+        
         # Calcular velocidad en segundos si hay tempo
         if tempo:
             self.speed = tempo.beats_to_seconds(speed_beats)
         else:
             self.speed = speed_beats
+        
+        self._set_duration()
+        
 
     def run(self):
         """
@@ -72,6 +78,7 @@ class StarMidiPlayer():
             #    break
 
             # Determine channel based on X position (pan)
+            
             cc = int(self._get_chain_index(star.pan))
             print(f"Duration: {star.duration}")
 
@@ -80,7 +87,7 @@ class StarMidiPlayer():
 
             # Enviar nota
             self._send_note_on(star, self.channel_base, cc)
-            time.sleep(1)
+            time.sleep(star.duration)
             self._send_note_off(star, 1)
 
     def _get_chain_index(self, pan: float) -> int:
@@ -88,17 +95,18 @@ class StarMidiPlayer():
 
         return pan // 12
     
-    def _set_duration(self,):
+    def _set_duration(self):
         if (self.stars):
             random.shuffle(self.stars)
         for i in range(len(self.stars) - 1):
             star1 = self.stars[i]
             star2 = self.stars[i + 1]
         
-            star1 = math.hypot(
+            star1.duration = math.hypot(
                 star2.x - star1.x,
                 star2.y - star1.y
-            ) / 200
+            ) / 300
+            
         
 
     def _send_note_on(self, star, channel: int, pan: int):
