@@ -47,11 +47,12 @@ class StarMidiPlayer():
             tempo: Tempo object for synchronization (optional)
             shuffle: If True, plays stars in random order
         """
-        super().__init__(outport, channel_base)
         self.stars = stars
         self.speed_beats = speed_beats
         self.tempo = tempo
         self.shuffle = shuffle
+        self.channel_base = channel_base
+        self.outport = outport
 
         # Calcular velocidad en segundos si hay tempo
         if tempo:
@@ -67,8 +68,8 @@ class StarMidiPlayer():
         # Shuffle if enabled
 
         for star in self.stars:
-            if not self.running:
-                break
+            #if not self.running:
+            #    break
 
             # Determine channel based on X position (pan)
             cc = int(self._get_chain_index(star.pan))
@@ -79,7 +80,7 @@ class StarMidiPlayer():
 
             # Enviar nota
             self._send_note_on(star, self.channel_base, cc)
-            time.sleep(star.duration)
+            time.sleep(1)
             self._send_note_off(star, 1)
 
     def _get_chain_index(self, pan: float) -> int:

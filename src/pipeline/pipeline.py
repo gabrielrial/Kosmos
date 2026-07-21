@@ -23,70 +23,64 @@ from midi.clock import MidiClockGenerator
 from midi.star_player import StarMidiPlayer
 
 
-
-
 class ImageToMidi:
-    
+
     def __init__(
-        self,  
-        config_path: str,
-        image_path: str,
-        output_dir: Optional[str] = None
-        ):
-        
+        self, config_path: str, image_path: str, output_dir: Optional[str] = None
+    ):
+
         # Load configuration and validate
         self.config = ConfigLoader.load(config_path)
-        
-        # Paths 
+
+        # Paths
         self.image_path = image_path
         self.output_path = output_dir
 
-        #Components (initialized during process())
+        # Components (initialized during process())
         self.device: MidiDevice | None
         self.outport = None
-        self.ports = {}  # Dictionary with 3 ports: kosmos_stars, kosmos_bass, kosmos_clock
-        
+        self.ports = (
+            {}
+        )  # Dictionary with 3 ports: kosmos_stars, kosmos_bass, kosmos_clock
+
         ## Images
 
         self.images: Images | None
         #
         ## Players
         self.midi: MidiSetup
-        #self.star_player: StarMidiPlayer | None
-        #self.bass_player: ColorBassPlayer | None
+        self.star_player: StarMidiPlayer | None
+        # self.bass_player: ColorBassPlayer | None
         #
         ## Data
         self.stars: Stars = Stars()
-        #self.dominant_colors: List = []
+        # self.dominant_colors: List = []
         #
         ## Status
-        #self._processed = False
-        #self._started = False
-        
+        # self._processed = False
+        # self._started = False
+
         print(f"[Pipeline] Initialized")
         print(f"  Config: {config_path}")
         print(f"  Imagen: {image_path}")
         print(f"  Output: {output_dir}")
         print()
 
-
     def process(self):
 
+        self.midi = MidiSetup(self.config).init()
+        print(self.midi.outport)
 
-            self.midi = MidiSetup(self.config).init()
-            print(self.midi.outport)
+        # Image Processo
+        ## Check and capture exception if it is requiere
+        self.images = ImagePipeLine(self.image_path)._process_image()
 
-            # Image Processo
-            ## Check and capture exception if it is requiere
-            self.images =  ImagePipeLine(self.image_path)._process_image()
+        # Start Detector
+        StarDetector(self.images, self.stars, self.config).detect()
+        print(f"Small stars count: {self.stars.small_stars.__len__()}")
+        print(f"Big stars count: {self.stars.big_stars.__len__()}")
 
-
-            # Start Detector
-            StarDetector(self.images, self.stars, self.config).detect()
-            print(f"Small stars count: {self.stars.small_stars.__len__()}")
-            print(f"Big stars count: {self.stars.big_stars.__len__()}")
-
-            #self._setup_midi()
+        self._setup_midi()
 
     '''
             self._start_playback()
@@ -203,16 +197,13 @@ class ImageToMidi:
             f"status={status})"
         )
     '''
+
     def _setup_midi(self):
-        print(self.outport)
-        self.clock_gen = MidiClockGenerator(self.outport["kosmos_clock"], self.config.tempo.bpm)
         self.star_player = StarMidiPlayer(
             stars=self.stars.small_stars,
-            outport=self.config.instruments_name.instrument_small,
+            outport=self.midi.outport["kosmos_stars"],
             channel_base=3,
             speed_beats=self.config.instrument.stars_speed_beats,
-            tempo=self.tempo,
-            shuffle=True
-        )
-
-         
+            tempo=self.midi.tempo,
+            shuffle=True,
+        ).run()
