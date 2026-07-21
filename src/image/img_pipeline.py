@@ -39,21 +39,13 @@ class ImagePipeLine:
         self.images.blurred_img = self.images.original_img.filter(
             ImageFilter.BoxBlur(self.config.blur)
         )
-        self.images.blurred_img.show()
+        self.images.blurred_img.save("saturated_img.png")
 
     def _saturate_img(self) -> None:
 
         sturate = PIL.ImageEnhance.Color(self.images.original_img)
         self.images.saturated_img = sturate.enhance(self.config.saturation_boost)
-        self.images.saturated_img.show()
-
-    # def play_effect(self) -> None:
-    #     play = self.images.original_img
-    #     play = play.point(lambda i: i * 20)
-    #     play.show()
-
-
-# def saturates_img(self):
+        self.images.saturated_img.save("saturated_img.png")
 
 """
         

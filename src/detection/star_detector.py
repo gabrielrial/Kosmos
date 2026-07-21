@@ -68,11 +68,11 @@ class StarDetector:
                     pixels, x, y, width, height, visited
                 )
 
-                # Verificar contraste
-                # if not self.utils.has_sufficient_contrast(
-                #    pixels, bx, by, width, height
-                # ):
-                #    continue
+                 #Verificar contraste
+                if not self.utils.has_sufficient_contrast(
+                    pixels, bx, by, width, height
+                 ):
+                    continue
 
                 # Get pixel data (color from color_source_image)
 
@@ -83,7 +83,7 @@ class StarDetector:
                 )
 
                 # Classify by area
-                if 4 < area < 30:
+                if 2 < area < 30:
                     star = SmallStar(
                         x=bx,
                         y=by,
@@ -112,13 +112,13 @@ class StarDetector:
                     self.stars.big_stars.append(star)
 
                     # Guardar preview cada 75 estrellas
-                if len(self.stars.small_stars) % 10 == 0:
-                    self._save_star_preview(
-                        self.images.original_img, bx, by, is_big_star=True
-                    )
+                #if len(self.stars.small_stars) % 10 == 0:
+                #    self._save_star_preview(
+                #        self.images.original_img, bx, by, is_big_star=True
+                #    )
 
         # Guardar imagen con estrellas sobre fondo negro
-        # self._save_stars_image(self.images.original_img, width, height)
+        self._save_stars_image()
 
     def _save_star_preview(
         self,
@@ -156,7 +156,7 @@ class StarDetector:
         filename = f"small_{count}.png"
         star_img.save(filename)
 
-    def _save_stars_image(self, original_image, width: int, height: int) -> None:
+    def _save_stars_image(self) -> None:
         """
         Creates an image with black background and draws all stars with their colors.
 
@@ -166,12 +166,12 @@ class StarDetector:
             height: Image height
         """
         # Create black image
-        img_black = Image.new("RGB", (width, height), color=(0, 0, 0))
-        draw = ImageDraw.Draw(img_black)
+        img_copy = self.images.original_img.copy()
+        draw = ImageDraw.Draw(img_copy)
 
         # Draw all stars with their original RGB color
 
-        for star in self.constelation.small_stars:
+        for star in self.stars.small_stars:
             x, y = star.x, star.y
             rgb = (
                 star.rgb_color if star.rgb_color else (255, 255, 255)
@@ -184,12 +184,12 @@ class StarDetector:
             radius = 5 if star.area < 30 else 10
             left = max(0, x - radius)
             top = max(0, y - radius)
-            right = min(width, x + radius)
-            bottom = min(height, y + radius)
+            right = min(self.images.width, x + radius)
+            bottom = min(self.images.height, y + radius)
 
             draw.ellipse([left, top, right, bottom], outline=rgb)
 
         # Save image
-        output_path = f"{self.preview_dir}/stars_detected.png"
-        img_black.save(output_path)
+        output_path = "stars_detected.png"
+        img_copy.save(output_path)
         print(f"[OK] Stars image saved to: {output_path}")
