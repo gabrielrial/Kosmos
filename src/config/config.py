@@ -70,6 +70,7 @@ class Config:
     tempo: TempoConfig
     instrument: InstrumentConfig
     images: Images
+    instruments_name: InstrumentNames
 
     # Paths (optional, for easier testing)
     image_path: Optional[str] = None
@@ -153,10 +154,10 @@ class Config:
             ),
             instruments_name = InstrumentNames(
                 instrument_small=data.get("instrument_name", {}).get("small_stars", "Synth Small"),
-                instrument_small=data.get("instrument_name", {}).get("big_stars", "Synth Big"),
-                instrument_small=data.get("instrument_name", {}).get("bass", "Bass"),
-                instrument_small=data.get("instrument_name", {}).get("pad", "Pad")
-            )
+                instrument_big=data.get("instrument_name", {}).get("big_stars", "Synth Big"),
+                instrument_bass=data.get("instrument_name", {}).get("bass", "Bass"),
+                instrument_pad=data.get("instrument_name", {}).get("pad", "Pad")
+            ),
             
             image_path=data.get("image_path"),
             output_dir=data.get("output_dir"),

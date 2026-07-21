@@ -6,11 +6,10 @@ import math
 import time
 import random
 import mido
-from .player import MidiPlayer
 from typing import List, Optional
 
 
-class StarMidiPlayer(MidiPlayer):
+class StarMidiPlayer():
     """
     Plays stars detected in images as MIDI notes.
 

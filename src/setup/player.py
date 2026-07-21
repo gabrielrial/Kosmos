@@ -10,18 +10,9 @@ class PlayerFactory:
 
     def run(self):
 
-        self._create_clock()
         self._create_star_player()
         self._create_bass_player()
 
-    def _create_clock(self):
-
-        clock_port = self.pipeline.ports["kosmos_clock"]
-
-        self.pipeline.clock_gen = MidiClockGenerator(
-            clock_port,
-            self.config
-        )
 
     def _create_star_player(self):
 

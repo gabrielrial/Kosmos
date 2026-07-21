@@ -1,26 +1,23 @@
 from midi.tempo import Tempo
 from midi.device import MidiDevice
+from config.config import Config
+from midi.clock import MidiClockGenerator
+from typing import Self, Any
 
 
 class MidiSetup:
 
-    def __init__(self, pipeline):
-        self.pipeline = pipeline
+    def __init__(self, config: Config):
 
-    def init(self):
-        self._setup_tempo()
-        self._setup_device()
+        self.config = config
 
-    def _setup_tempo(self):
+        self.midi_devices: MidiDevice | None = None
+        self.clock: MidiClockGenerator | None = None
+        self.outport: dict[str, Any] = {}
+        self.tempo: Tempo | None = None
 
-        self.pipeline.tempo = Tempo(
-            self.pipeline.config.tempo.bpm
-        )
-
-    def _setup_device(self):
-
-        self.pipeline.device = MidiDevice()
-
-        self.pipeline.ports = (
-            self.pipeline.device.create_instrument_outputs()
-        )
+    def init(self) -> Self:
+        self.tempo = Tempo(self.config.tempo.bpm)
+        self.midi_devices = MidiDevice()
+        self.outport = self.midi_devices.create_instrument_outputs()
+        return self

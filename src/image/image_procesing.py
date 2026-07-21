@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw
 import numpy as np
 from models.images import Images
 
-from setup.image import ImageUtils
+#from setup.image import ImageUtils
 
 
 class ImageProcessor:

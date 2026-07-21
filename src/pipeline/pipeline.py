@@ -19,6 +19,8 @@ from midi.tempo import Tempo
 from models.images import Images
 from detection.star_detector import StarDetector
 from models.star import Stars
+from midi.clock import MidiClockGenerator
+from midi.star_player import StarMidiPlayer
 
 
 
@@ -40,7 +42,6 @@ class ImageToMidi:
         self.output_path = output_dir
 
         #Components (initialized during process())
-        self.tempo: Tempo | None
         self.device: MidiDevice | None
         self.outport = None
         self.ports = {}  # Dictionary with 3 ports: kosmos_stars, kosmos_bass, kosmos_clock
@@ -50,9 +51,9 @@ class ImageToMidi:
         self.images: Images | None
         #
         ## Players
-        self.clock_gen: MidiClockGenerator | None
-        self.star_player: StarMidiPlayer | None
-        self.bass_player: ColorBassPlayer | None
+        self.midi: MidiSetup
+        #self.star_player: StarMidiPlayer | None
+        #self.bass_player: ColorBassPlayer | None
         #
         ## Data
         self.stars: Stars = Stars()
@@ -72,9 +73,10 @@ class ImageToMidi:
     def process(self):
 
 
-            MidiSetup(self).init()
+            self.midi = MidiSetup(self.config).init()
+            print(self.midi.outport)
 
-            # Image Processor
+            # Image Processo
             ## Check and capture exception if it is requiere
             self.images =  ImagePipeLine(self.image_path)._process_image()
 
@@ -83,12 +85,10 @@ class ImageToMidi:
             StarDetector(self.images, self.stars, self.config).detect()
             print(f"Small stars count: {self.stars.small_stars.__len__()}")
             print(f"Big stars count: {self.stars.big_stars.__len__()}")
- 
-            
 
-            PlayerFactory(self).run()
-'''
+            #self._setup_midi()
 
+    '''
             self._start_playback()
 
             self._processed = True
@@ -202,4 +202,17 @@ class ImageToMidi:
             f"bpm={self.config.tempo.bpm}, "
             f"status={status})"
         )
-'''
+    '''
+    def _setup_midi(self):
+        print(self.outport)
+        self.clock_gen = MidiClockGenerator(self.outport["kosmos_clock"], self.config.tempo.bpm)
+        self.star_player = StarMidiPlayer(
+            stars=self.stars.small_stars,
+            outport=self.config.instruments_name.instrument_small,
+            channel_base=3,
+            speed_beats=self.config.instrument.stars_speed_beats,
+            tempo=self.tempo,
+            shuffle=True
+        )
+
+         

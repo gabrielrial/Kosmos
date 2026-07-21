@@ -8,7 +8,7 @@ import mido
 from typing import Optional
 
 
-class MidiClockGenerator(MidiPlayer):
+class MidiClockGenerator():
     """
     Generates MIDI Clock for synchronization with external equipment/software.
     
