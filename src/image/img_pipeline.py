@@ -1,17 +1,20 @@
 from PIL import Image, ImageFilter, ImageEnhance
 import PIL
 from models.images import Images
+from config.config import ImageConfig
+
 
 class ImagePipeLine:
 
-    def __init__(self, image_path: str):
+    def __init__(self, image_path: str, config: ImageConfig):
 
         self.image_path = image_path
 
         self.images = Images()
 
-        
-    def _process_image(self) -> Images:
+        self.config = config
+
+    def process(self) -> Images:
         """ImageFilter
         Processes the image: magic wand, detection, and color analysis.
         ImageFilter
@@ -19,43 +22,39 @@ class ImagePipeLine:
         5. Extracts dominants colors for bass.
         """
 
-        self.loads_img()
-        self.blurs_img()
-        self.saturate_img()
-
+        self._loads_img()
+        self._blurs_img()
+        self._saturate_img()
 
         return self.images
-       
-	
-	
 
-    def loads_img(self) -> None:
+    def _loads_img(self) -> None:
         """
-            Loads the original image as Image PIL class, ang gets its attributes.
+        Loads the original image as Image PIL class, ang gets its attributes.
         """
         self.images.original_img = Image.open(self.image_path).convert("RGB")
         self.images.width, self.images.height = self.images.original_img.size
-    
-    def blurs_img(self) -> None:
-        self.images.blurred_img = self.images.original_img.filter(ImageFilter.BoxBlur(0))
-        #self.images.blurred_img.show()
 
-    def saturate_img(self) -> None:
-        
+    def _blurs_img(self) -> None:
+        self.images.blurred_img = self.images.original_img.filter(
+            ImageFilter.BoxBlur(self.config.blur)
+        )
+        self.images.blurred_img.show()
+
+    def _saturate_img(self) -> None:
+
         sturate = PIL.ImageEnhance.Color(self.images.original_img)
-        self.images.saturated_img  = sturate.enhance(1.2)
-        #self.images.saturated_img.show()
+        self.images.saturated_img = sturate.enhance(self.config.saturation_boost)
+        self.images.saturated_img.show()
 
     # def play_effect(self) -> None:
     #     play = self.images.original_img
     #     play = play.point(lambda i: i * 20)
     #     play.show()
-          
-        
-        
-	
-	# def saturates_img(self):
-    
+
+
+# def saturates_img(self):
+
 """
         
         print("\n[Image Processing]")

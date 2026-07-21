@@ -5,13 +5,10 @@
 			"s": 0.5
 		},
 		"ring_radius": 3,
-		"brightness_threshold": 60,
+		"brightness_threshold": 20,
 		"small_stars": {
 			"contrast": 50
 		}
-	},
-	"dominant_color": {
-		"tolerance": 150
 	},
 	"tempo": {
 		"bpm": 120
@@ -21,11 +18,10 @@
 		"bass_max_note_duration_beats": 4.0,
 		"stars_speed_beats": 0.5
 	},
-	"staturation": {
-		"boost": 1.2
-	},
 	"images": {
-		"saturation_boost" : 1.2
+		"saturation_boost" : 50,
+		"tolerance": 150,
+		"blur": 0
 	},
 	"instruments_name": {
 		"small_stars": "Synth Small",

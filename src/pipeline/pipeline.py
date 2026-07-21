@@ -69,21 +69,25 @@ class ImageToMidi:
 
     def process(self):
 
+        #
+        self.images = ImagePipeLine(self.image_path, self.config.images).process()
+
+        StarDetector(self.images, self.stars, self.config.star_detector).detect()
+
+
         self.midi = MidiSetup(self.config).init()
         print(self.midi.outport)
 
         # Image Processo
         ## Check and capture exception if it is requiere
-        self.images = ImagePipeLine(self.image_path)._process_image()
 
         # Start Detector
-        StarDetector(self.images, self.stars, self.config).detect()
         print(f"Small stars count: {self.stars.small_stars.__len__()}")
         print(f"Big stars count: {self.stars.big_stars.__len__()}")
 
-        self._setup_midi()
-        self._start_playback()
-        self.wait()
+        #self._setup_midi()
+        #self._start_playback()
+        #self.wait()
 
     '''
             self._start_playback()

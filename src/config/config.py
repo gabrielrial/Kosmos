@@ -8,17 +8,19 @@ from typing import Optional, Any, Dict
 from error.errors import ERR_FILE_NOT_FOUND
 
 @dataclass
-class Images:
+class ImageConfig:
     """Configuration for images"""
     saturation_boost: float = 1.5
+    tolerance: int = 100
+    blur: float = 1
 
 @dataclass
 class StarDetectorConfig:
     """Configuration for the star detector"""
 
-    white_threshold_v: float = 0.65
-    white_threshold_s: float = 0.2
-    brightness_threshold: int = 180
+    white_threshold_v: float = 0.7
+    white_threshold_s: float = 0.5
+    brightness_threshold: int = 1000
     ring_radius: int = 2
     contrast_threshold: int = 60
 
@@ -28,13 +30,6 @@ class SmallStarsConfig:
     """Configuration specific for small stars"""
 
     contrast: int = 60
-
-
-@dataclass
-class PredominantColorConfig:
-    """Configuration for the dominant color analyzer"""
-
-    tolerance: int = 100
 
 
 @dataclass
@@ -66,10 +61,9 @@ class InstrumentNames:
 class Config:
     star_detector: StarDetectorConfig
     small_stars: SmallStarsConfig
-    predominant_color: PredominantColorConfig
     tempo: TempoConfig
     instrument: InstrumentConfig
-    images: Images
+    images: ImageConfig
     instruments_name: InstrumentNames
 
     # Paths (optional, for easier testing)
@@ -132,9 +126,6 @@ class Config:
                 .get("small_stars", {})
                 .get("contrast", 60),
             ),
-            predominant_color=PredominantColorConfig(
-                tolerance=data.get("predominant_color", {}).get("tolerance", 100),
-            ),
             tempo=TempoConfig(
                 bpm=data.get("tempo", {}).get("bpm", 120),
             ),
@@ -149,8 +140,10 @@ class Config:
                     "stars_speed_beats", 0.5
                 ),
             ),
-            images = Images(
-                saturation_boost=data.get("saturation", {}).get("saturation_boost", 1.5)
+            images = ImageConfig(
+                saturation_boost=data.get("saturation", {}).get("saturation_boost", 2),
+                tolerance=data.get("tolerance", {}).get("tolerance", 1.5),
+                blur=data.get("blur", {}).get("blur", 0)
             ),
             instruments_name = InstrumentNames(
                 instrument_small=data.get("instrument_name", {}).get("small_stars", "Synth Small"),
@@ -177,8 +170,10 @@ class Config:
                     "contrast": self.small_stars.contrast,
                 },
             },
-            "predominant_color": {
-                "tolerance": self.predominant_color.tolerance,
+            "image": {
+                "saturation_boost": self.images.saturation_boost,
+                "tolerance": self.images.tolerance,
+                "blur": self.images.blur,
             },
             "tempo": {
                 "bpm": self.tempo.bpm,
@@ -213,8 +208,12 @@ class Config:
             errors.append(f"contrast cannot be negative")
 
         # Validate tolerance
-        if self.predominant_color.tolerance < 0:
-            errors.append(f"tolerance cannot be negative")
+        if self.images.blur < 0:
+            errors.append(f"value cannot be negative")
+        if self.images.saturation_boost < 0:
+            errors.append(f"value cannot be negative")
+        if not self.images.tolerance > 0:
+            errors.append(f"value cannot be negative")
 
         # Validate beats
         if self.instrument.bass_speed_beats <= 0:
