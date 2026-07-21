@@ -50,9 +50,9 @@ class ImageToMidi:
         self.images: Images | None
         #
         ## Players
-        #self.clock_gen: MidiClockGenerator | None
-        #self.star_player: StarMidiPlayer | None
-        #self.bass_player: ColorBassPlayer | None
+        self.clock_gen: MidiClockGenerator | None
+        self.star_player: StarMidiPlayer | None
+        self.bass_player: ColorBassPlayer | None
         #
         ## Data
         self.stars: Stars = Stars()
@@ -86,8 +86,8 @@ class ImageToMidi:
  
             
 
-'''
             PlayerFactory(self).run()
+'''
 
             self._start_playback()
 
@@ -99,7 +99,7 @@ class ImageToMidi:
             raise
 
     
-    def _start_playback(self):
+    def _start_playback(self) 
         """Stars all instruments."""
         print("\n[Starting Playback]")
         

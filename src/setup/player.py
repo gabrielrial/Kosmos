@@ -1,12 +1,12 @@
 from src.midi.clock import MidiClockGenerator
 from src.midi.star_player import StarMidiPlayer
-from src.midi.color_bass_player import ColorBassPlayer
+from config.config import Config
 
 
 class PlayerFactory:
 
-    def __init__(self, pipeline):
-        self.pipeline = pipeline
+    def __init__(self, config: Config):
+        self.config = config
 
     def run(self):
 
@@ -20,7 +20,7 @@ class PlayerFactory:
 
         self.pipeline.clock_gen = MidiClockGenerator(
             clock_port,
-            self.pipeline.tempo
+            self.config
         )
 
     def _create_star_player(self):

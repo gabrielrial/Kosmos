@@ -5,7 +5,6 @@ Allows synchronization with DAWs like Ableton Live.
 
 import time
 import mido
-from .player import MidiPlayer
 from typing import Optional
 
 

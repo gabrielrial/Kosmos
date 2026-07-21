@@ -53,6 +53,16 @@ class InstrumentConfig:
     stars_speed_beats: float = 80
 
 @dataclass
+class InstrumentNames:
+    """Name for MIDI instruments"""
+
+    instrument_small: str = "synth_big"
+    instrument_big: str = "synth_big"
+    instrument_bass: str = "bass"
+    instrument_pad: str = "pad"
+    
+
+@dataclass
 class Config:
     star_detector: StarDetectorConfig
     small_stars: SmallStarsConfig
@@ -141,6 +151,12 @@ class Config:
             images = Images(
                 saturation_boost=data.get("saturation", {}).get("saturation_boost", 1.5)
             ),
+            instruments_name = InstrumentNames(
+                instrument_small=data.get("instrument_name", {}).get("small_stars", "Synth Small"),
+                instrument_small=data.get("instrument_name", {}).get("big_stars", "Synth Big"),
+                instrument_small=data.get("instrument_name", {}).get("bass", "Bass"),
+                instrument_small=data.get("instrument_name", {}).get("pad", "Pad")
+            )
             
             image_path=data.get("image_path"),
             output_dir=data.get("output_dir"),

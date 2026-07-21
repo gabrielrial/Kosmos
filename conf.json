@@ -26,5 +26,11 @@
 	},
 	"images": {
 		"saturation_boost" : 1.2
+	},
+	"instruments_name": {
+		"small_stars": "Synth Small",
+		"big_stars": "Synth Big",
+		"bass": "Bass",
+		"pad": "Pad"
 	}
 }
