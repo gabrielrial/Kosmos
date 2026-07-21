@@ -105,7 +105,7 @@ class StarMidiPlayer(Thread):
             star1.duration = math.hypot(
                 star2.x - star1.x,
                 star2.y - star1.y
-            ) / 300
+            ) / 500
             
         
 

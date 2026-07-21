@@ -83,7 +83,7 @@ class StarDetector:
                 note, velocity = self.utils.color_to_note_and_velocity(bx, by, self.images.saturated_img)
                 
                 # Classify by area
-                if 3 < area < 30:
+                if 4 < area < 30:
                     star = SmallStar(
                         x=bx,
                         y=by,
@@ -99,7 +99,7 @@ class StarDetector:
                     #if self.save_previews and len(self.small_stars) % 100 == 0:
                     #    self._save_star_preview(image, bx, by, is_big_star=False)
                 
-                elif 30 <= area < 1000:
+                elif 30 <= area < 70:
                     star = BigStar(
                         x=bx,
                         y=by,
@@ -112,12 +112,12 @@ class StarDetector:
                     self.constelation.big_stars.append(star)
                 
                     
-                    # Guardar preview cada 75 estrellas
-                    #if self.save_previews and len(self.big_stars) % 75 == 0:
-                    #    self._save_star_preview(image, bx, by, is_big_star=True)
+                     #Guardar preview cada 75 estrellas
+                if len(self.constelation.small_stars) % 10 == 0:
+                    self._save_star_preview(self.images.original_img, bx, by, is_big_star=True)
         
-        # Guardar imagen con estrellas sobre fondo negro
-        #self._save_stars_image(image, width, height)
+         #Guardar imagen con estrellas sobre fondo negro
+        #self._save_stars_image(self.images.original_img, width, height)
         
     
     def _save_star_preview(
@@ -137,8 +137,6 @@ class StarDetector:
             is_big_star: Whether it is a big star
             preview_size: Crop radius around the center
         """
-        if not self.save_previews:
-            return
         
         width, height = image.size
         left = max(0, bx - preview_size)
@@ -154,9 +152,8 @@ class StarDetector:
         star_img.putpixel((cx, cy), (255, 0, 0))
         
         # Save with descriptive name
-        prefix = "bigstar" if is_big_star else "star"
-        count = len(self.big_stars) if is_big_star else len(self.small_stars)
-        filename = f"{self.preview_dir}/{prefix}_{count}.png"
+        count = len(self.constelation.small_stars)
+        filename = f"small_{count}.png"
         star_img.save(filename)
     
     def _save_stars_image(self, original_image, width: int, height: int) -> None:
@@ -173,9 +170,8 @@ class StarDetector:
         draw = ImageDraw.Draw(img_black)
         
         # Draw all stars with their original RGB color
-        all_stars = self.small_stars + self.big_stars
         
-        for star in all_stars:
+        for star in self.constelation.small_stars:
             x, y = star.x, star.y
             rgb = star.rgb_color if star.rgb_color else (255, 255, 255)  # White by default
             
