@@ -1,7 +1,9 @@
-from PIL import Image, ImageFilter, ImageEnhance
 import PIL
+import numpy as np
+from PIL import Image, ImageFilter, ImageEnhance
 from models.images import Images
 from config.config import ImageConfig
+from collections import deque
 
 
 class ImagePipeLine:
@@ -25,6 +27,7 @@ class ImagePipeLine:
         self._loads_img()
         self._blurs_img()
         self._saturate_img()
+        self.magic_wand()
 
         return self.images
 
@@ -46,6 +49,76 @@ class ImagePipeLine:
         sturate = PIL.ImageEnhance.Color(self.images.original_img)
         self.images.saturated_img = sturate.enhance(self.config.saturation_boost)
         self.images.saturated_img.save("saturated_img.png")
+
+    def magic_wand(
+        self,
+        output_path: str = "magic_wand.png",
+        tolerance: int = 150,
+    ) -> None:
+        """
+        Groups pixels of similar colors and replaces with average color.
+
+        Simulates Photoshop's "magic wand": finds connected regions
+        of similar colors and paints them with the average color of the region.
+
+        Args:
+            output_path: Path to save processed image
+            tolerance: Maximum color distance to group (0-255)
+        """
+        img = self.images.original_img.copy()
+        w, h = self.images.width, self.images.height
+        pixels = img.load()
+        visited = np.zeros((w, h), dtype=bool)
+
+        def color_distance(c1, c2):
+            return (c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2
+
+        # Iterate through each unvisited pixel
+        for y in range(h):
+            for x in range(w):
+                if visited[x, y]:
+                    continue
+
+                orig_color = pixels[x, y]
+                queue = deque([(x, y)])
+                region = []
+
+                # Flood fill to find connected region
+                while queue:
+                    cx, cy = queue.popleft()
+                    if visited[cx, cy]:
+                        continue
+                    cur_color = pixels[cx, cy]
+
+                    # Add to region if color is similar
+                    if color_distance(orig_color, cur_color) <= tolerance * tolerance:
+                        region.append((cx, cy))
+
+                    visited[cx, cy] = True
+
+                    # Add unvisited neighbors
+                    for nx, ny in [
+                        (cx + 1, cy),
+                        (cx - 1, cy),
+                        (cx, cy + 1),
+                        (cx, cy - 1),
+                    ]:
+                        if 0 <= nx < w and 0 <= ny < h and not visited[nx, ny]:
+                            queue.append((nx, ny))
+
+                # Replace region with average color
+                if region:
+                    avg_r = int(np.mean([pixels[px, py][0] for px, py in region]))
+                    avg_g = int(np.mean([pixels[px, py][1] for px, py in region]))
+                    avg_b = int(np.mean([pixels[px, py][2] for px, py in region]))
+
+                    for px, py in region:
+                        pixels[px, py] = (avg_r, avg_g, avg_b)
+
+        img.save(output_path)
+        self.images.main_colors_img = img
+        print(f"[OK] Magic wand saved at: {output_path}")
+
 
 """
         
