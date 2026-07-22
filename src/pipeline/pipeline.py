@@ -74,6 +74,8 @@ class ImageToMidi:
 
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
 
+        
+
 
         self.midi = MidiSetup(self.config).init()
         print(self.midi.outport)

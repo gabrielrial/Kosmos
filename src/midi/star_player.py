@@ -2,9 +2,9 @@
 Player for playing detected stars as MIDI notes.
 """
 
-import math
+
 import time
-import random
+
 import mido
 from typing import List, Optional
 from models.star import Star, Stars

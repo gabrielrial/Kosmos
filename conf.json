@@ -11,7 +11,8 @@
 		}
 	},
 	"tempo": {
-		"bpm": 120
+		"bpm": 120,
+		"subdivision": 7
 	},
 	"instrument": {
 		"bass": 1,

@@ -1,24 +1,27 @@
+from config.config import TempoConfig
+
+
 class Tempo:
     """Manages the global tempo of playback in BPM."""
 
-    def __init__(self, bpm: float):
+    def __init__(self, tempo_config: TempoConfig):
         print("Init Tempo")
         """Tempo initializer."""
-        if bpm <= 0:
+        if tempo_config.bpm <= 0:
             raise ValueError(f"BPM must be > 0, BPM received: {bpm}")
 
-        self.bpm = float(bpm)
+        self.bpm = tempo_config.bpm
+        self.subdivision = tempo_config.subdivision
         self.beat_duration = 60.0 / self.bpm
-        print(f"BPM:  {self.bpm}")
-        print(f"Beat Duration:  {self.beat_duration}")
 
     def beats_to_seconds(self, beats: float) -> float:
         """Converts beats to seconds."""
         return beats * self.beat_duration
 
-    def seconds_to_beats(self, seconds: float) -> float:
-        """Converts seconds to beats."""
-        return seconds / self.beat_duration
+    def subdivision_to_second(self, division: int) -> float:
+        """Converts a subdivision index to seconds."""
+        subdivision_duration = self.beat_duration / self.subdivision
+        return division * subdivision_duration
 
     def __repr__(self) -> str:
         return f"Tempo(bpm={self.bpm}, beat_duration={self.beat_duration:.4f}s)"

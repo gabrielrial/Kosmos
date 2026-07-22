@@ -37,6 +37,7 @@ class TempoConfig:
     """Configuration for global tempo"""
 
     bpm: int = 120
+    subdivision: int = 16
 
 
 @dataclass
@@ -128,6 +129,7 @@ class Config:
             ),
             tempo=TempoConfig(
                 bpm=data.get("tempo", {}).get("bpm", 120),
+                subdivision=data.get("tempo", {}).get("subdivision", 16),
             ),
             instrument=InstrumentConfig(
                 bass_speed_beats=data.get("instrument", {}).get(
@@ -177,6 +179,7 @@ class Config:
             },
             "tempo": {
                 "bpm": self.tempo.bpm,
+                "subdivision": self.tempo.subdivision
             },
             "instrument": {
                 "bass_speed_beats": self.instrument.bass_speed_beats,
@@ -192,6 +195,8 @@ class Config:
         # Validate BPM
         if self.tempo.bpm <= 0:
             errors.append(f"BPM must be positive, received: {self.tempo.bpm}")
+        if self.tempo.division <= 0:
+            errors.append(f"Division must be positive, received: {self.tempo.division}")
 
         # Validate thresholds (0-1)
         if not (0 <= self.star_detector.white_threshold_v <= 1):
