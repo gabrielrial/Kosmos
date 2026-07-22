@@ -195,8 +195,8 @@ class Config:
         # Validate BPM
         if self.tempo.bpm <= 0:
             errors.append(f"BPM must be positive, received: {self.tempo.bpm}")
-        if self.tempo.division <= 0:
-            errors.append(f"Division must be positive, received: {self.tempo.division}")
+        if self.tempo.subdivision <= 0:
+            errors.append(f"Division must be positive, received: {self.tempo.subdivision}")
 
         # Validate thresholds (0-1)
         if not (0 <= self.star_detector.white_threshold_v <= 1):

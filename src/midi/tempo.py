@@ -8,7 +8,7 @@ class Tempo:
         print("Init Tempo")
         """Tempo initializer."""
         if tempo_config.bpm <= 0:
-            raise ValueError(f"BPM must be > 0, BPM received: {bpm}")
+            raise ValueError(f"BPM must be > 0, BPM received: {tempo_config.bpm}")
 
         self.bpm = tempo_config.bpm
         self.subdivision = tempo_config.subdivision

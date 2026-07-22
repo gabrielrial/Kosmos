@@ -17,7 +17,7 @@ class MidiSetup:
         self.tempo: Tempo | None = None
 
     def init(self) -> Self:
-        self.tempo = Tempo(self.config.tempo.bpm)
+        self.tempo = Tempo(self.config.tempo)
         self.midi_devices = MidiDevice()
         self.outport = self.midi_devices.create_instrument_outputs()
         return self

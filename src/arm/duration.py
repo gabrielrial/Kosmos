@@ -1,11 +1,8 @@
-from models.star import Stars, Star, SmallStar
-import random
-import math
-from typing import Tuple
+from models.star import Stars
 from midi.tempo import Tempo
 
 
-class py:
+class dur:
 
     def __init__(self, stars: Stars, tempo: Tempo, width: int):
         self.stars: Stars = stars

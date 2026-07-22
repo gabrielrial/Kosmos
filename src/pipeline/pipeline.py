@@ -12,6 +12,7 @@ Orchestrates the entire workflow:
 from typing import Tuple, List, Optional
 
 from config.config import ConfigLoader
+from arm.duration import dur
 from setup.midi import MidiSetup
 from image.img_pipeline import ImagePipeLine
 from midi.device import MidiDevice
@@ -74,10 +75,12 @@ class ImageToMidi:
 
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
 
+        self.midi = MidiSetup(self.config).init()
+        dur(self.stars, self.midi.tempo, self.images.width)
+
         
 
 
-        self.midi = MidiSetup(self.config).init()
         print(self.midi.outport)
 
         # Image Processo
@@ -87,9 +90,9 @@ class ImageToMidi:
         print(f"Small stars count: {self.stars.small_stars.__len__()}")
         print(f"Big stars count: {self.stars.big_stars.__len__()}")
 
-        #self._setup_midi()
-        #self._start_playback()
-        #self.wait()
+        self._setup_midi()
+        self._start_playback()
+        self.wait()
 
     '''
             self._start_playback()

@@ -4,8 +4,8 @@ Player for playing detected stars as MIDI notes.
 
 
 import time
-
-import mido
+import random
+import mido, math
 from typing import List, Optional
 from models.star import Star, Stars
 from threading import Thread
