@@ -28,6 +28,7 @@ class ImagePipeLine:
         self._blurs_img()
         self._saturate_img()
         self.magic_wand()
+        self._reduce_to_dominant_colors()
 
         return self.images
 
@@ -118,6 +119,71 @@ class ImagePipeLine:
         img.save(output_path)
         self.images.main_colors_img = img
         print(f"[OK] Magic wand saved at: {output_path}")
+
+
+    def _get_dominant_colors(
+        self,
+        min_percentage: float = 0.02,
+    ) -> list[tuple[tuple[int, int, int], float]]:
+        """
+        Returns the dominant colors of self.images.main_colors_img.
+        """
+
+        from collections import Counter
+
+        data = list(self.images.original_img.getdata())
+        total_pixels = len(data)
+
+        counter = Counter(data)
+
+        dominant = []
+
+        for color, count in counter.items():
+            percentage = count / total_pixels
+
+            if percentage >= min_percentage:
+                dominant.append((color, percentage))
+
+        dominant.sort(key=lambda x: x[1], reverse=True)
+        
+        print(f"Total dominant colors: {len(dominant)}")
+        print(dominant[:10])
+   
+        print(len(counter))
+
+        return dominant
+
+    def _reduce_to_dominant_colors(self) -> None:
+        """Replaces every pixel by the nearest dominant color."""
+
+        dominant = self._get_dominant_colors(0.001)
+
+        img = self.images.original_img.copy()
+
+        pixels = img.load()
+
+        w, h = img.size
+
+        colors = [color for color, _ in dominant]
+
+        def color_distance(c1, c2):
+            return (c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2
+
+        for y in range(h):
+            for x in range(w):
+
+                original = pixels[x, y]
+
+                closest = min(
+                    colors,
+                    key=lambda c: color_distance(c, original),
+                )
+
+                pixels[x, y] = closest
+
+        self.images.dominant_img = img
+
+        img.save("dominant_colors.png")
 
 
 """
