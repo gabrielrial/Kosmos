@@ -63,8 +63,6 @@ class StarMidiPlayer(Thread):
         else:
             self.speed = speed_beats
         
-        self._set_duration()
-        
 
     def run(self):
         """

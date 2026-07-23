@@ -1,14 +1,16 @@
 # Kosmos
 
-An experimental image-to-MIDI tool for astronomical images.
+## Description
 
-Kosmos analyzes astronomical images, detects stars, dominant colors, and brightness, and converts this information into MIDI events that can be routed to a DAW such as Ableton Live. The generated MIDI can be used to control synthesizers and create music directly from the visual structure of an image.
+An experimental tool for generating MIDI from space images.
+
+Kosmos analyzes different caracteristic from an images in order to generet MIDI signal from data. It detects stars, dominant colors, and brightness, then converts this information into MIDI events that can be routed to a DAW such as Ableton Live. The generated MIDI can be used to control synthesizers and create music directly from the visual structure of an image.
 
 ---
 
 ## Features
 
-- Detects and classifies small and large stars.
+- Algorithem disigned to detect stars out of an space image.
 - Extracts dominant colors and reduces the image to a simplified color palette.
 - Maps star position, size, color, and brightness to MIDI events.
 - Creates virtual MIDI ports for seamless integration with a DAW.
@@ -20,7 +22,7 @@ Kosmos analyzes astronomical images, detects stars, dominant colors, and brightn
 ## Requirements
 
 - Python 3.11 or later
-- macOS, Linux, or Windows
+- macOS, Linux.
 - `python-rtmidi` for virtual MIDI ports
 - Ableton Live or any DAW that supports virtual MIDI ports
 
@@ -37,18 +39,9 @@ cd Kosmos
 
 2. Create and activate a virtual environment:
 
-**macOS / Linux**
-
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-**Windows**
-
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
 ```
 
 3. Install the project dependencies:
@@ -61,7 +54,7 @@ pip install -r requirements.txt
 
 ## Configuration
 
-Kosmos is configured through a JSON file. An example configuration is provided in `conf.json`.
+The project is configured through a JSON file. An example configuration is provided in `conf.json`.
 
 ### Key configuration options
 
@@ -114,13 +107,35 @@ Kosmos exposes the following virtual MIDI ports:
 
 ---
 
+## Project Structure
+
+```text
+src/
+├── config/
+│   └── config.py          # Configuration loading and validation
+├── detection/
+│   └── star_detector.py   # Star detection and classification
+├── image/
+│   └── img_pipeline.py    # Image processing and color extraction
+├── midi/
+│   ├── device.py          # Virtual MIDI device management
+│   └── star_player.py     # MIDI playback for detected stars
+├── pipeline/
+│   └── pipeline.py        # Image-to-MIDI processing pipeline
+└── main.py                # Application entry point
+
+conf.json                  # Example configuration
+```
+
+---
+
 ## How It Works
 
 1. Load the input RGB image.
 2. Apply saturation enhancement and optional blur.
 3. Group similar colors using a **Magic Wand–style** region-growing algorithm.
-4. Detect and classify bright stars as either small or large.
-5. Calculate each star's MIDI pitch, velocity, and stereo panning based on its position, color, and brightness.
+4. Detect bright stars and classify them as either small or large.
+5. Compute each star's MIDI pitch, velocity, and stereo panning based on its position and color.
 6. Generate `note_on` and `note_off` MIDI messages for playback in the selected DAW.
 
 ---
@@ -129,19 +144,17 @@ Kosmos exposes the following virtual MIDI ports:
 
 Kosmos is highly configurable. You can adjust both the image analysis and MIDI generation parameters to achieve different musical results.
 
-For example, you can:
+Some ideas:
 
 - Adjust brightness and saturation thresholds for different types of images.
 - Modify `stars_speed_beats` to change playback speed.
-- Rename MIDI outputs through `instruments_name` to better organize tracks in your DAW.
+- Rename MIDI outputs through `instrument_name` to better organize tracks in your DAW.
 - Experiment with different astronomical images to generate unique musical patterns.
 
 ---
 
 ## Notes
 
-- Kosmos generates MIDI signal from the visual structure of astronomical images.
-- The current implementation focuses on **Stars** and **Bass**, but the architecture is designed for future expansion with additional instruments such as pads or leads.
+- Kosmos is designed to generate musical material from the visual structure of images.
+- The current implementation focuses on **Stars** and **Bass**, but the architecture is designed to be extended with additional instruments such as pads, leads, or percussion.
 - If you are using Ableton Live, make sure the virtual MIDI ports are available before starting the application.
-
----
