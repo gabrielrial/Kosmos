@@ -12,7 +12,7 @@ Orchestrates the entire workflow:
 from typing import Tuple, List, Optional
 
 from config.config import ConfigLoader
-from arm.duration import dur
+from quantizer.quantizer import Quantizer
 from setup.midi import MidiSetup
 from image.img_pipeline import ImagePipeLine
 from midi.device import MidiDevice
@@ -76,19 +76,19 @@ class ImageToMidi:
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
 
         self.midi = MidiSetup(self.config).init()
-        dur(self.stars, self.midi.tempo, self.images.width)
+        Quantizer(self.stars, self.midi.tempo, self.images.width)
 
         
 
 
-        print(self.midi.outport)
+        # print(self.midi.outport)
 
         # Image Processo
         ## Check and capture exception if it is requiere
 
         # Start Detector
-        print(f"Small stars count: {self.stars.small_stars.__len__()}")
-        print(f"Big stars count: {self.stars.big_stars.__len__()}")
+        # print(f"Small stars count: {self.stars.small_stars.__len__()}")
+        # print(f"Big stars count: {self.stars.big_stars.__len__()}")
 
         self._setup_midi()
         self._start_playback()

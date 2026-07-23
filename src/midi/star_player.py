@@ -2,7 +2,6 @@
 Player for playing detected stars as MIDI notes.
 """
 
-
 import time
 import random
 import mido, math
@@ -56,13 +55,8 @@ class StarMidiPlayer(Thread):
         self.channel_base = channel_base
         self.outport = outport
         super().__init__()
-        
+
         # Calcular velocidad en segundos si hay tempo
-        if tempo:
-            self.speed = tempo.beats_to_seconds(speed_beats)
-        else:
-            self.speed = speed_beats
-        
 
     def run(self):
         """
@@ -72,13 +66,12 @@ class StarMidiPlayer(Thread):
         # Shuffle if enabled
 
         for star in self.stars:
-            #if not self.running:
+            # if not self.running:
             #    break
 
             # Determine channel based on X position (pan)
-            
+
             cc = int(self._get_chain_index(star.pan))
-            print(f"Duration: {star.duration}")
 
             # Log
             self._log_star(star, 1)
@@ -86,26 +79,13 @@ class StarMidiPlayer(Thread):
             # Enviar nota
             self._send_note_on(star, self.channel_base, cc)
             time.sleep(star.duration)
-            self._send_note_off(star, 1)
+            self._send_note_off(star, self.channel_base)
+            time.sleep(star.duration * 4)
 
     def _get_chain_index(self, pan: float) -> int:
         pan = max(0, min(int(pan), 127))
 
         return pan // 12
-    
-    def _set_duration(self):
-        if (self.stars):
-            random.shuffle(self.stars)
-        for i in range(len(self.stars) - 1):
-            star1 = self.stars[i]
-            star2 = self.stars[i + 1]
-        
-            star1.duration = math.hypot(
-                star2.x - star1.x,
-                star2.y - star1.y
-            ) / 500
-            
-        
 
     def _send_note_on(self, star, channel: int, pan: int):
 
@@ -113,9 +93,7 @@ class StarMidiPlayer(Thread):
         print(f"Midi Chain list: {pan}")
 
         # CC SIEMPRE en canal fijo (0)
-        self.outport.send(
-            mido.Message("control_change", control=7, value=pan)
-        )
+        self.outport.send(mido.Message("control_change", control=7, value=pan))
 
         # Note also on fixed channel (0 or base, but consistent)
         self.outport.send(

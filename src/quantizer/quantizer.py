@@ -2,12 +2,14 @@ from models.star import Stars
 from midi.tempo import Tempo
 
 
-class dur:
+class Quantizer:
 
     def __init__(self, stars: Stars, tempo: Tempo, width: int):
         self.stars: Stars = stars
         self.width: int = width
         self.tempo: Tempo = tempo
+
+        self._set_duration()
 
     # def __quantization(self):
 
@@ -17,9 +19,8 @@ class dur:
 
         section_width = self.width / len(durations)
 
-        all_stars = self.stars.small_stars + self.stars.big_stars
-
-        for star in all_stars:
+        for star in self.stars.small_stars:
+            print(f"Star: {star.note}")
 
             index = int(star.x / section_width)
             index = min(index, len(durations) - 1)

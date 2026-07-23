@@ -145,11 +145,6 @@ class ImagePipeLine:
                 dominant.append((color, percentage))
 
         dominant.sort(key=lambda x: x[1], reverse=True)
-        
-        print(f"Total dominant colors: {len(dominant)}")
-        print(dominant[:10])
-   
-        print(len(counter))
 
         return dominant
 
