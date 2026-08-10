@@ -20,16 +20,18 @@ class Quantizer:
         section_width = self.width / len(durations)
 
         for star in self.stars.small_stars:
-            print(f"Star: {star.note}")
-
             index = int(star.x / section_width)
             index = min(index, len(durations) - 1)
 
             subdivision = durations[index]
 
             star.duration = self.tempo.beat_duration / subdivision
+            print(star.duration)
 
     def _get_possible_durations(self) -> list:
+        """
+            Returns a list with the all the time divisions based on the BPM given to the program.
+        """
         durations = []
 
         value = self.tempo.subdivision
