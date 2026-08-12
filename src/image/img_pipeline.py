@@ -28,7 +28,7 @@ class ImagePipeLine:
         self._blurs_img()
         self._saturate_img()
         self.magic_wand()
-        self._reduce_to_dominant_colors()
+        #self._reduce_to_dominant_colors()
 
         return self.images
 
@@ -43,7 +43,7 @@ class ImagePipeLine:
         self.images.blurred_img = self.images.original_img.filter(
             ImageFilter.BoxBlur(self.config.blur)
         )
-        self.images.blurred_img.save("saturated_img.png")
+        self.images.blurred_img.save("blurred_img.png")
 
     def _saturate_img(self) -> None:
 

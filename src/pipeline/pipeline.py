@@ -19,6 +19,7 @@ from midi.device import MidiDevice
 from midi.tempo import Tempo
 from models.images import Images
 from detection.star_detector import StarDetector
+from detection.cloud_detector import CloudDetector
 from models.star import Stars
 from midi.clock import MidiClockGenerator
 from midi.star_player import StarMidiPlayer
@@ -74,6 +75,7 @@ class ImageToMidi:
         self.images = ImagePipeLine(self.image_path, self.config.images).process()
 
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
+        CloudDetector(self.images, self.stars, self.config).detect()
 
         self.midi = MidiSetup(self.config).init()
         Quantizer(self.stars, self.midi.tempo, self.images.width)
