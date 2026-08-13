@@ -26,7 +26,6 @@ class Quantizer:
             subdivision = durations[index]
 
             star.duration = self.tempo.beat_duration / subdivision
-            print(star.duration)
 
     def _get_possible_durations(self) -> list:
         """

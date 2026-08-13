@@ -41,7 +41,7 @@ class ImagePipeLine:
 
     def _blurs_img(self) -> None:
         self.images.blurred_img = self.images.original_img.filter(
-            ImageFilter.BoxBlur(self.config.blur)
+            ImageFilter.BoxBlur(25)
         )
         self.images.blurred_img.save("blurred_img.png")
 

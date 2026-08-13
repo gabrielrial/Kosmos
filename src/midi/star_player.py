@@ -74,7 +74,7 @@ class StarMidiPlayer(Thread):
             cc = int(self._get_chain_index(star.pan))
 
             # Log
-            self._log_star(star, 1)
+            #self._log_star(star, 1)
 
             # Enviar nota
             self._send_note_on(star, self.channel_base, cc)
@@ -90,7 +90,6 @@ class StarMidiPlayer(Thread):
     def _send_note_on(self, star, channel: int, pan: int):
 
         pan = max(0, min(int(pan), 127))
-        print(f"Midi Chain list: {pan}")
 
         # CC SIEMPRE en canal fijo (0)
         self.outport.send(mido.Message("control_change", control=7, value=pan))

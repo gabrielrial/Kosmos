@@ -1,7 +1,8 @@
 from config.config import Config
 from models.images import Images
 from models.star import Stars, SmallStar, BigStar
-from PIL import ImageDraw
+from PIL import ImageDraw, Image, ImageFilter
+
 
 class CloudDetector:
 
@@ -10,28 +11,32 @@ class CloudDetector:
         self.images = images
         self.stars = stars
 
-
     def detect(self):
         self._remove_stars()
-        
-
 
     def _remove_stars(self):
-        img_copy = self.images.original_img.copy()
-        img_blurred = self.images.blurred_img
-        draw = ImageDraw.Draw(img_copy)
 
-        for star in self.stars.small_stars:
-            x, y = star.x,star.y
-            draw.circle([x, y], star.area/4, (0,0,0))
+        img = self.images.original_img.copy()
+        blurred = self.images.blurred_img
 
-        img_copy.save("cloud.png")
-        print(f"[OK] Stars image saved to: cloud")
+        for star in self.stars.small_stars + self.stars.big_stars:
+            box = self._get_star_box(star)
+            blurred_region = blurred.crop(box)
+            img.paste(blurred_region, box[:2])
 
-        
+        img.save("cloud.png")
 
-    
+        no_stars = img.filter(ImageFilter.BoxBlur(12))
+        no_stars.save("blurred_img2.png")
 
-    
+        print("[OK] Stars removed and image saved to: cloud.png")
 
-    
+    def _get_star_box(self, star):
+        half = 6
+
+        return (
+            int(star.x - half),
+            int(star.y - half),
+            int(star.x + half),
+            int(star.y + half),
+        )

@@ -99,7 +99,7 @@ class StarDetector:
                     # if self.save_previews and len(self.small_stars) % 100 == 0:
                     #    self._save_star_preview(image, bx, by, is_big_star=False)
 
-                elif 30 <= area < 70:
+                elif 30 <= area < 100:
                     star = BigStar(
                         x=bx,
                         y=by,
@@ -118,6 +118,7 @@ class StarDetector:
                 #    )
 
         # Guardar imagen con estrellas sobre fondo negro
+        print(f"Stars detected: {len(self.stars.big_stars) + len(self.stars.small_stars)}")
         self._save_stars_image()
 
     def _save_star_preview(
@@ -171,7 +172,7 @@ class StarDetector:
 
         # Draw all stars with their original RGB color
 
-        for star in self.stars.small_stars:
+        for star in self.stars.small_stars + self.stars.big_stars:
             x, y = star.x, star.y
             rgb = (
                 star.rgb_color if star.rgb_color else (255, 255, 255)
