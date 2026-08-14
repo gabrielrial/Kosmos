@@ -1,12 +1,13 @@
 {
 	"star_detector": {
 		"white_threshold": {
-			"v": 0.7,
+			"v": 0.6,
 			"s": 0.5
 		},
-		"ring_radius": 3,
+		"ring_radius": 12,
+		"brightness_threshold": 100,
 		"small_stars": {
-			"contrast": 50
+			"contrast": 20
 		}
 	},
 	"tempo": {

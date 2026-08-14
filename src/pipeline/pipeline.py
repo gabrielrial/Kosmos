@@ -53,6 +53,7 @@ class ImageToMidi:
     def process(self):
 
         print(self.config.small_stars.contrast)
+        print(self.config.star_detector.brightness_threshold)
 
         self.images = ImagePipeLine(self.image_path, self.config.images).process()
 
