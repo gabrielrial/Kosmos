@@ -21,24 +21,39 @@ class DetectionUtils:
     # ========================================================================
 
     def is_white_pixel(self, rgb: Tuple[int, int, int]) -> bool:
-        """
-        Detects if a pixel is white or bright.
 
-        A pixel is considered white/bright if:
-        1. Its absolute brightness >= brightness_threshold, OR
-        2. It is desaturated white (v >= white_threshold_v AND s <= white_threshold_s)
+        """
+        Detects if a pixel is bright and sufficiently desaturated to be
+        considered a star candidate.
+
+        Conditions:
+        - RGB brightness must be above brightness_threshold.
+        - HSV Value must be above white_threshold_v.
+        - HSV Saturation must be below white_threshold_s.
 
         Args:
-            rgb: Tuple (r, g, b) with values 0-255
+            rgb: Tuple (r, g, b) with values 0-255.
 
         Returns:
-            True if the pixel is white/bright
+            True if the pixel is considered white/bright.
         """
+        import colorsys
+
         brightness = sum(rgb) / 3
 
-        # Criterio 1: Brillo absoluto
-        if brightness >= self.config.brightness_threshold:
-            return True
+        # Absolute brightness filter
+        if brightness < self.config.brightness_threshold:
+            return False
+
+        # Convert RGB (0-255) to HSV (0-1)
+        r, g, b = [value / 255.0 for value in rgb]
+        _, saturation, value = colorsys.rgb_to_hsv(r, g, b)
+
+        # White/bright pixel filter
+        return (
+            value >= self.config.white_threshold_v
+            and saturation <= self.config.white_threshold_s
+        )
 
     # ========================================================================
     # NEIGHBORHOOD ANALYSIS (RING)

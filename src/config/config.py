@@ -20,9 +20,9 @@ class StarDetectorConfig:
 
     white_threshold_v: float = 0.7
     white_threshold_s: float = 0.5
-    brightness_threshold: int = 1000
+    brightness_threshold: int = 50
     ring_radius: int = 2
-    contrast_threshold: int = 60
+    contrast_threshold: int = 50
 
 
 @dataclass
