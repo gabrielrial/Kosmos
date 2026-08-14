@@ -4,14 +4,19 @@ from midi.tempo import Tempo
 
 class Quantizer:
 
-    def __init__(self, stars: Stars, tempo: Tempo, width: int):
+    def __init__(
+        self,
+        stars: Stars,
+        tempo: Tempo,
+        width: int,
+        ticks_per_beat: int = 960,
+    ):
         self.stars: Stars = stars
         self.width: int = width
         self.tempo: Tempo = tempo
+        self.ticks_per_beat: int = ticks_per_beat
 
         self._set_duration()
-
-    # def __quantization(self):
 
     def _set_duration(self):
 
@@ -25,11 +30,11 @@ class Quantizer:
 
             subdivision = durations[index]
 
-            star.duration = self.tempo.beat_duration / subdivision
+            star.duration = int(self.ticks_per_beat / subdivision)
 
     def _get_possible_durations(self) -> list:
         """
-            Returns a list with the all the time divisions based on the BPM given to the program.
+        Returns all possible rhythmic subdivisions based on the tempo.
         """
         durations = []
 

@@ -23,6 +23,7 @@ from detection.cloud_detector import CloudDetector
 from models.star import Stars
 from midi.clock import MidiClockGenerator
 from midi.star_player import StarMidiPlayer
+from midi.midi_creator import MidiSheet
 
 
 class ImageToMidi:
@@ -63,6 +64,8 @@ class ImageToMidi:
         # self._processed = False
         # self._started = False
 
+        self.midi_track = MidiSheet()
+
         print(f"[Pipeline] Initialized")
         print(f"  Config: {config_path}")
         print(f"  Imagen: {image_path}")
@@ -79,6 +82,9 @@ class ImageToMidi:
 
         self.midi = MidiSetup(self.config).init()
         Quantizer(self.stars, self.midi.tempo, self.images.width)
+        self.midi_track.add_instrument(self.stars.small_stars, 0)
+        self.midi_track.save("kosmos2.mid")
+
 
         
 
@@ -92,9 +98,9 @@ class ImageToMidi:
         # print(f"Small stars count: {self.stars.small_stars.__len__()}")
         # print(f"Big stars count: {self.stars.big_stars.__len__()}")
 
-        self._setup_midi()
-        self._start_playback()
-        self.wait()
+        #self._setup_midi()
+        #self._start_playback()
+        #self.wait()
 
     '''
             self._start_playback()

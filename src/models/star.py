@@ -12,7 +12,7 @@ class Star:
     velocity: int
     pan: int
     area: float
-    duration: float = 0.0
+    duration: int = 0
     rgb_color: tuple[int, int, int] | None = None
 
     def __post_init__(self):
