@@ -21,7 +21,6 @@ class StarDetectorConfig:
     white_threshold_v: float = 0.7
     white_threshold_s: float = 0.5
     brightness_threshold: int = 50
-    ring_radius: int = 2
     contrast_threshold: int = 50
 
 
@@ -117,7 +116,6 @@ class Config:
                 brightness_threshold=data.get("star_detector", {}).get(
                     "brightness_threshold", 180
                 ),
-                ring_radius=data.get("star_detector", {}).get("ring_radius", 2),
                 contrast_threshold=data.get("star_detector", {})
                 .get("small_stars", {})
                 .get("contrast", 60),
@@ -167,7 +165,6 @@ class Config:
                     "s": self.star_detector.white_threshold_s,
                 },
                 "brightness_threshold": self.star_detector.brightness_threshold,
-                "ring_radius": self.star_detector.ring_radius,
                 "small_stars": {
                     "contrast": self.small_stars.contrast,
                 },

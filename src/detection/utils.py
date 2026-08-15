@@ -8,6 +8,7 @@ and color → MIDI note conversions.
 from typing import Tuple, List, Set
 from PIL import Image
 from config.config import StarDetectorConfig
+import math
 
 
 class DetectionUtils:
@@ -86,9 +87,10 @@ class DetectionUtils:
         y: int,
         width: int,
         height: int,
+        area: int
     ) -> List[Tuple[int, int, int]]:
         """
-        Returns all colors in the ring around a pixel.
+        Returns all colors in the  around a pixel.
 
         The ring is a square of radius self.ring_radius around the pixel.
 
@@ -101,9 +103,9 @@ class DetectionUtils:
             List of (r, g, b) tuples
         """
         ring = []
-        R = self.config.ring_radius
-        for dx in range(-R, R + 1):
-            for dy in range(-R, R + 1):
+        R = int(math.sqrt(area / math.pi))
+        for dx in range(-R - 1, R + 1):
+            for dy in range(-R - 1, R + 1):
                 if dx == 0 and dy == 0:
                     continue
                 nx, ny = x + dx, y + dy
@@ -118,6 +120,7 @@ class DetectionUtils:
         y: int,
         width: int,
         height: int,
+        area: int
     ) -> float:
         """
         Calculates the average brightness of the ring around a pixel.
@@ -130,7 +133,7 @@ class DetectionUtils:
         Returns:
             Average brightness (0-255)
         """
-        ring = self.get_ring_colors(pixels, x, y, width, height)
+        ring = self.get_ring_colors(pixels, x, y, width, height, area)
         if not ring:
             return 0
         avg_brightness = sum(sum(pixel) / 3 for pixel in ring) / len(ring)
@@ -143,6 +146,7 @@ class DetectionUtils:
         y: int,
         width: int,
         height: int,
+        area: int,
     ) -> bool:
         """
         Verifies if there is sufficient contrast between center and ring.
@@ -158,7 +162,7 @@ class DetectionUtils:
             True if contrast >= contrast_threshold
         """
         center_brightness = sum(pixels[x, y]) / 3
-        ring_brightness = self.calculate_ring_brightness(pixels, x, y, width, height)
+        ring_brightness = self.calculate_ring_brightness(pixels, x, y, width, height, area)
         contrast = center_brightness - ring_brightness
         return contrast >= self.config.contrast_threshold
 

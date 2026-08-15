@@ -70,7 +70,6 @@ Kosmos is configured through a JSON file. An example configuration is provided i
 | `star_detector.white_threshold.v` | HSV value threshold for bright pixels |
 | `star_detector.white_threshold.s` | HSV saturation threshold for bright pixels |
 | `star_detector.brightness_threshold` | Minimum brightness required to classify a star |
-| `star_detector.ring_radius` | Search radius for bright regions |
 | `star_detector.small_stars.contrast` | Minimum contrast for detecting small stars |
 | `tempo.bpm` | Tempo in beats per minute |
 | `tempo.subdivision` | Beat subdivision |

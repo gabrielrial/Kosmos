@@ -70,7 +70,7 @@ class StarDetector:
 
                  #Verificar contraste
                 if not self.utils.has_sufficient_contrast(
-                    pixels, bx, by, width, height
+                    pixels, bx, by, width, height, area
                  ):
                     continue
 
