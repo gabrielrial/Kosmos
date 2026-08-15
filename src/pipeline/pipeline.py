@@ -59,6 +59,6 @@ class ImageToMidi:
 
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
 
-        Quantizer(self.stars, self.midi.tempo, self.images.width)
+        Quantizer(self.stars, self.images.width)
         self.midi_track.add_instrument(self.stars.small_stars, 0)
         self.midi_track.save("kosmos2.mid")

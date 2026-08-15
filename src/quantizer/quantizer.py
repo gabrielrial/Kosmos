@@ -7,13 +7,11 @@ class Quantizer:
     def __init__(
         self,
         stars: Stars,
-        tempo: Tempo,
         width: int,
-        ticks_per_beat: int = 960,
+        ticks_per_beat: int = 3640,
     ):
         self.stars: Stars = stars
         self.width: int = width
-        self.tempo: Tempo = tempo
         self.ticks_per_beat: int = ticks_per_beat
 
         self._set_duration()
@@ -38,7 +36,7 @@ class Quantizer:
         """
         durations = []
 
-        value = self.tempo.subdivision
+        value = 16
 
         while value >= 1:
             durations.append(value)
