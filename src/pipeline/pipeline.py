@@ -80,10 +80,10 @@ class ImageToMidi:
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
         CloudDetector(self.images, self.stars, self.config).detect()
 
-        self.midi = MidiSetup(self.config).init()
-        Quantizer(self.stars, self.midi.tempo, self.images.width)
-        self.midi_track.add_instrument(self.stars.small_stars, 0)
-        self.midi_track.save("kosmos2.mid")
+        #self.midi = MidiSetup(self.config).init()
+        #Quantizer(self.stars, self.midi.tempo, self.images.width)
+        #self.midi_track.add_instrument(self.stars.small_stars, 0)
+        #self.midi_track.save("kosmos2.mid")
 
 
         

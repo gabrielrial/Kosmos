@@ -69,7 +69,7 @@ class CloudDetector:
                 box[:2]
             )
 
-        img.save("cloud.png")
+        #img.save("cloud.png")
 
         print("[OK] Stars removed and image saved to: cloud.png")
 
@@ -254,6 +254,8 @@ class CloudDetector:
             nebulas
         )
 
+        self._save_dominant_colors(img, labeled, nebulas)      
+
         return nebulas
 
     def _save_nebula_mask(self, mask):
@@ -316,3 +318,112 @@ class CloudDetector:
             int(star.x + half),
             int(star.y + half),
         )
+
+    def _save_dominant_colors(self, img, labeled, nebulas):
+        """
+        Create a 100x100 color palette image for each nebula.
+
+        Each color occupies a portion of the image proportional
+        to how frequently it appears in the nebula.
+        """
+
+        rgb = np.array(img.convert("RGB"))
+
+        for i, nebula in enumerate(nebulas):
+
+            # Get the label corresponding to this nebula.
+            #
+            # Nebula objects are created in the same order as
+            # the accepted labels.
+            #
+            # We therefore find the label by looking for the
+            # region around the nebula center.
+            center_label = labeled[nebula.y, nebula.x]
+
+            if center_label == 0:
+                continue
+
+            # Pixels belonging to this nebula
+            ys, xs = np.where(labeled == center_label)
+
+            if len(xs) == 0:
+                continue
+
+            # RGB values of all pixels in this nebula
+            pixels = rgb[ys, xs]
+
+            # ---------------------------------------------------------
+            # Reduce the number of colors
+            # ---------------------------------------------------------
+
+            # Convert the pixels to a small palette.
+            #
+            # Pillow's quantize() is useful here because astronomical
+            # images can contain thousands of slightly different RGB
+            # values.
+            pixel_img = Image.fromarray(
+                pixels.reshape(1, len(pixels), 3).astype(np.uint8), "RGB"
+            )
+
+            quantized = pixel_img.quantize(colors=5, method=Image.Quantize.MEDIANCUT)
+
+            palette = quantized.getpalette()
+            color_counts = quantized.getcolors()
+
+            if color_counts is None:
+                continue
+
+            # ---------------------------------------------------------
+            # Extract dominant colors
+            # ---------------------------------------------------------
+
+            dominant_colors = []
+
+            for count, color_index in color_counts:
+
+                r = palette[color_index * 3]
+                g = palette[color_index * 3 + 1]
+                b = palette[color_index * 3 + 2]
+
+                dominant_colors.append((count, (r, g, b)))
+
+            # Sort from most common to least common
+            dominant_colors.sort(key=lambda x: x[0], reverse=True)
+
+            # ---------------------------------------------------------
+            # Create 100x100 image
+            # ---------------------------------------------------------
+
+            palette_img = Image.new("RGB", (100, 100))
+
+            draw = ImageDraw.Draw(palette_img)
+
+            total_pixels = sum(count for count, _ in dominant_colors)
+
+            current_x = 0
+
+            for count, color in dominant_colors:
+
+                proportion = count / total_pixels
+
+                width = int(proportion * 100)
+
+                # Make sure the last color reaches the edge.
+                if (count, color) == dominant_colors[-1]:
+                    width = 100 - current_x
+
+                draw.rectangle((current_x, 0, current_x + width, 100), fill=color)
+
+                current_x += width
+
+            filename = f"nebula_{i + 1}_colors.png"
+
+            palette_img.save(filename)
+
+            print(f"[OK] Dominant colors saved to: {filename}")
+
+            for count, color in dominant_colors:
+
+                percentage = (count / total_pixels) * 100
+
+                print(f"    RGB={color} " f"{percentage:.1f}%")
