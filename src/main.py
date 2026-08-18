@@ -20,7 +20,7 @@ def main():
     ImageToMidi(args.config, args.image, args.output).process()
     end = time.perf_counter()
 
-    print(f"Tiempo: {end - start} segundos")
+    print(f"Time: {end - start:.2f} seconds")
 
 if __name__ == "__main__":
     main()
