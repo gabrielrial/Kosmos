@@ -1,5 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List
+
 from models.chords import Chord
+from models.color import Color
+
 
 @dataclass
 class Nebula:
@@ -14,7 +18,10 @@ class Nebula:
     brightness: float
     hue: float
     saturation: float
-    filter_curve: list[float] = None
-    note: list [int] = 0
-    chords: list [Chord] = 0
-    duration: list [int] = 0
+
+    filter_curve: List[float] = field(default_factory=list)
+    note: List[int] = field(default_factory=list)
+    chords: List[Chord] = field(default_factory=list)
+    duration: List[int] = field(default_factory=list)
+    dominant_colors: List[Color] = field(default_factory=list)
+    start_offset: float = 0.0

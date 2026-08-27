@@ -191,7 +191,20 @@ class MusicOrchestrator:
             neb_weight = getattr(neb, "area", 1.0)
 
             chords = list(getattr(neb, "chords", []) or [])
-            if chords and any(getattr(ch, "duration", None) is None for ch in chords):
+            if not chords and hasattr(neb, "dominant_colors") and getattr(neb, "dominant_colors"):
+                from music.harmonic_path import HarmonicPath
+                chords = HarmonicPath(neb).generate(total_beats=self.nebula_total_duration_beats, subdivision=self.subdivision)
+                print(
+                    f"[HARMONY DEBUG] Nebula {getattr(neb, 'x', 'n')} -> Generated {len(chords)} chords "
+                    f"from dominant colors total_duration={self.nebula_total_duration_beats}"
+                )
+                for j, ch in enumerate(chords):
+                    root_val = getattr(ch, 'note', getattr(ch, 'root', None))
+                    print(
+                        f"    {j}: root={root_val} type={ch.chord_type.name} "
+                        f"duration={getattr(ch, 'duration', 0)} notes={ch.chord_maker()}"
+                    )
+            elif chords and any(getattr(ch, "duration", None) is None for ch in chords):
                 # If the chords do not have explicit duration, distribute the whole
                 # nebula phrase across the colors by their relative weight.
                 if hasattr(neb, "dominant_colors") and getattr(neb, "dominant_colors"):
