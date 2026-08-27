@@ -1,26 +1,11 @@
 from config.config import Config
 from models.images import Images
 from models.star import Stars
-from dataclasses import dataclass
-
-from PIL import Image, ImageDraw, ImageFilter
+from models.nebula import Nebula
+from detection.cloud_utils import CloudUtils
+from PIL import Image, ImageDraw
 import numpy as np
 from scipy import ndimage
-
-
-@dataclass
-class Nebula:
-    x: int
-    y: int
-    width: int
-    height: int
-    area: int
-    density: float
-
-    # Average visual properties
-    brightness: float
-    hue: float
-    saturation: float
 
 
 class CloudDetector:
@@ -29,6 +14,7 @@ class CloudDetector:
         self.config = config
         self.images = images
         self.stars = stars
+        self.utils = CloudUtils
 
     def detect(self):
         no_stars = self._remove_stars()
@@ -64,12 +50,9 @@ class CloudDetector:
 
             blurred_region = blurred.crop(box)
 
-            img.paste(
-                blurred_region,
-                box[:2]
-            )
+            img.paste(blurred_region, box[:2])
 
-        #img.save("cloud.png")
+        # img.save("cloud.png")
 
         print("[OK] Stars removed and image saved to: cloud.png")
 
@@ -93,8 +76,7 @@ class CloudDetector:
         # V = Brightness
         hsv = np.array(img.convert("HSV"))
 
-
-        # Array with each h, s and b 
+        # Array with each h, s and b
         hue = hsv[:, :, 0].astype(np.float32)
         saturation = hsv[:, :, 1].astype(np.float32)
         brightness = hsv[:, :, 2].astype(np.float32)
@@ -112,7 +94,7 @@ class CloudDetector:
         min_brightness = 0.2
 
         # Pixels below this saturation are considered too gray.
-        min_saturation = 0.1
+        min_saturation = 0.3
 
         # ---------------------------------------------------------
         # Create candidate mask
@@ -128,16 +110,10 @@ class CloudDetector:
         # ---------------------------------------------------------
 
         # Remove very small isolated pixels/groups.
-        mask = ndimage.binary_opening(
-            mask,
-            structure=np.ones((3, 3))
-        )
+        mask = ndimage.binary_opening(mask, structure=np.ones((3, 3)))
 
         # Connect nearby pixels belonging to the same structure.
-        mask = ndimage.binary_closing(
-            mask,
-            structure=np.ones((5, 5))
-        )
+        mask = ndimage.binary_closing(mask, structure=np.ones((5, 5)))
 
         # ---------------------------------------------------------
         # Find connected regions
@@ -195,13 +171,9 @@ class CloudDetector:
             region_saturation = saturation[ys, xs]
             region_hue = hue[ys, xs]
 
-            average_brightness = float(
-                np.mean(region_brightness)
-            )
+            average_brightness = float(np.mean(region_brightness))
 
-            average_saturation = float(
-                np.mean(region_saturation)
-            )
+            average_saturation = float(np.mean(region_saturation))
 
             # Hue is circular.
             #
@@ -215,9 +187,7 @@ class CloudDetector:
             hue_x = np.mean(np.cos(angles))
             hue_y = np.mean(np.sin(angles))
 
-            average_hue = (
-                np.arctan2(hue_y, hue_x) / (2 * np.pi)
-            )
+            average_hue = np.arctan2(hue_y, hue_x) / (2 * np.pi)
 
             if average_hue < 0:
                 average_hue += 1
@@ -249,12 +219,17 @@ class CloudDetector:
 
         self._save_nebula_mask(nebula_mask)
 
-        self._save_debug_image(
-            self.images.original_img,
-            nebulas
-        )
+        self._save_debug_image(self.images.original_img, nebulas)
 
-        self._save_dominant_colors(img, labeled, nebulas)      
+        self._save_dominant_colors(img, labeled, nebulas)
+
+        for i, nebula in enumerate(nebulas):
+
+            curve = self.utils._get_filter_curve(nebula_mask, nebula)
+
+            print(f"Nebula {i + 1} filter curve:")
+
+            print([round(value, 2) for value in curve])
 
         return nebulas
 
@@ -263,9 +238,7 @@ class CloudDetector:
         Save detected nebulas as a black/white image.
         """
 
-        mask_img = Image.fromarray(
-            (mask.astype(np.uint8) * 255)
-        )
+        mask_img = Image.fromarray((mask.astype(np.uint8) * 255))
 
         mask_img.save("nebulas.png")
 
@@ -290,20 +263,12 @@ class CloudDetector:
             bottom = top + nebula.height
 
             # Bounding box
-            draw.rectangle(
-                (left, top, right, bottom),
-                outline=(255, 0, 0),
-                width=2
-            )
+            draw.rectangle((left, top, right, bottom), outline=(255, 0, 0), width=2)
 
             # Label
             text = f"Nebula {i + 1}"
 
-            draw.text(
-                (left, top - 15),
-                text,
-                fill=(255, 0, 0)
-            )
+            draw.text((left, top - 15), text, fill=(255, 0, 0))
 
         debug.save("nebula_debug.png")
 
@@ -427,3 +392,89 @@ class CloudDetector:
                 percentage = (count / total_pixels) * 100
 
                 print(f"    RGB={color} " f"{percentage:.1f}%")
+
+            # ---------------------------------------------------------
+            # Debug: generate simple harmonic chords from dominant colors
+            # ---------------------------------------------------------
+            try:
+                import colorsys
+                from models.chords import Chord, ChordType
+
+                # Convert dominant colors to HSV and weights
+                color_infos = []  # list of (hue_deg, sat, bright, weight)
+                for count, (r, g, b) in dominant_colors:
+                    h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+                    hue_deg = h * 360.0
+                    weight = count / total_pixels if total_pixels > 0 else 0
+                    color_infos.append((hue_deg, s, v, weight))
+
+                # Simple 4-node harmonic circle (B, D, F, Ab)
+                circle_roots = [71, 62, 65, 68]
+
+                def map_hue_to_index(hue: float) -> int:
+                    centers = [0.0, 90.0, 180.0, 270.0]
+                    best_i = 0
+                    best_dist = 360.0
+                    for i, c in enumerate(centers):
+                        d = abs((hue - c + 180) % 360 - 180)
+                        if d < best_dist:
+                            best_i = i
+                            best_dist = d
+                    return best_i
+
+                def signed_hue_delta(h1: float, h2: float) -> float:
+                    a = h1 % 360
+                    b = h2 % 360
+                    diff = (b - a + 180) % 360 - 180
+                    return diff
+
+                # Build chord sequence enforcing exactly one-step moves between neighbors
+                generated = []
+                if color_infos:
+                    # first chord
+                    idx = map_hue_to_index(color_infos[0][0])
+                    hue, sat, bright, weight = color_infos[0]
+                    chord_type = ChordType.MAJOR if bright > 0.5 else ChordType.MINOR
+                    root = circle_roots[idx]
+                    ch0 = Chord(root, chord_type, 0)
+                    try:
+                        ch0.duration = max(0.125, weight * 1.0)
+                    except Exception:
+                        setattr(ch0, 'duration', max(0.125, weight * 1.0))
+                    generated.append(ch0)
+
+                    # following chords: always move one neighbor (+1 or -1) determined by signed hue delta
+                    for prev_ci, next_ci in zip(color_infos, color_infos[1:]):
+                        delta = signed_hue_delta(prev_ci[0], next_ci[0])
+                        direction = 1 if delta >= 0 else -1
+                        idx = (idx + direction) % len(circle_roots)
+                        hue, sat, bright, weight = next_ci
+                        chord_type = ChordType.MAJOR if bright > 0.5 else ChordType.MINOR
+                        root = circle_roots[idx]
+                        ch = Chord(root, chord_type, 0)
+                        try:
+                            ch.duration = max(0.125, weight * 1.0)
+                        except Exception:
+                            setattr(ch, 'duration', max(0.125, weight * 1.0))
+                        generated.append(ch)
+
+                # attach to nebula
+                nebula.chords = generated
+
+                # print debug info for chords
+                print(f"[HARMONY DEBUG] Nebula {i + 1} -> Generated {len(generated)} chords:")
+                for j, c in enumerate(generated):
+                    notes = []
+                    try:
+                        notes = c.chord_maker()
+                    except Exception:
+                        try:
+                            notes = c.chord_notes()
+                        except Exception:
+                            notes = []
+                    dur = getattr(c, 'duration', None)
+                    root_val = getattr(c, 'note', getattr(c, 'root', None))
+                    print(f"    {j}: root={root_val} type={c.chord_type.name} duration={dur} notes={notes}")
+
+            except Exception as e:
+                print(f"[HARMONY DEBUG] Could not generate chords: {e}")
