@@ -462,7 +462,22 @@ class CloudDetector:
                 nebula.chords = generated
 
                 # print debug info for chords
-                print(f"[HARMONY DEBUG] Nebula {i + 1} -> Generated {len(generated)} chords:")
+                nebula_total_pulses = getattr(self.config, 'harmony', None)
+                nebula_total_pulses = (
+                    nebula_total_pulses.nebula_total_duration_beats
+                    if nebula_total_pulses is not None and hasattr(nebula_total_pulses, 'nebula_total_duration_beats')
+                    else None
+                )
+                subdivision = getattr(self.config, 'tempo', None)
+                subdivision = subdivision.subdivision if subdivision is not None and hasattr(subdivision, 'subdivision') else 16
+
+                # Show the effective grid used for quantization.
+                step = 1.0 / float(subdivision)
+
+                print(f"[HARMONY DEBUG] Nebula {i + 1} -> Generated {len(generated)} chords")
+                if nebula_total_pulses is not None:
+                    print(f"    total_duration_pulses={nebula_total_pulses}")
+                print(f"    quantization_step={step} pulses (subdivision={subdivision})")
                 for j, c in enumerate(generated):
                     notes = []
                     try:
@@ -474,7 +489,13 @@ class CloudDetector:
                             notes = []
                     dur = getattr(c, 'duration', None)
                     root_val = getattr(c, 'note', getattr(c, 'root', None))
-                    print(f"    {j}: root={root_val} type={c.chord_type.name} duration={dur} notes={notes}")
+                    pulse_duration = dur * (nebula_total_pulses if nebula_total_pulses is not None else 1.0)
+                    rounded_pulse_duration = round(pulse_duration / step) * step
+                    print(
+                        f"    {j}: root={root_val} type={c.chord_type.name} "
+                        f"duration_pulses={pulse_duration:.3f} quantized={rounded_pulse_duration:.3f} "
+                        f"notes={notes}"
+                    )
 
             except Exception as e:
                 print(f"[HARMONY DEBUG] Could not generate chords: {e}")

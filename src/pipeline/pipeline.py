@@ -20,6 +20,8 @@ from midi.tempo import Tempo
 from models.images import Images
 from detection.star_detector import StarDetector
 from detection.cloud_detector import CloudDetector
+from music.orchestrator import MusicOrchestrator, StarEvent
+from music.star_mapper import StarNoteMapper
 from models.star import Stars
 from midi.clock import MidiClockGenerator
 from midi.star_player import StarMidiPlayer
@@ -78,7 +80,25 @@ class ImageToMidi:
         self.images = ImagePipeLine(self.image_path, self.config.images).process()
 
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
-        CloudDetector(self.images, self.stars, self.config).detect()
+        nebulas = CloudDetector(self.images, self.stars, self.config).detect()
+
+        # Delegate orchestration to MusicOrchestrator (keeps pipeline free of algorithms)
+        try:
+            orchestrator = MusicOrchestrator(tempo_bpm=self.config.tempo.bpm)
+            result = orchestrator.orchestrate(nebulas=nebulas, stars_obj=self.stars, images=self.images, quant=None, mapper=None)
+
+            timeline = result.get('timeline', [])
+            mapped = result.get('mapped_star_notes', [])
+
+            print(f"[ORCHESTRATOR] Generated timeline items: {len(timeline)}, mapped star notes: {len(mapped)}")
+
+            # Brief debug print
+            for i, ti in enumerate(timeline[:10]):
+                root = getattr(ti.chord, 'note', getattr(ti.chord, 'root', None))
+                print(f"  T{i}: {ti.start_beat:.2f} -> {ti.end_beat:.2f} root={root}")
+
+        except Exception as e:
+            print(f"[WARN] Orchestration failed: {e}")
 
         #self.midi = MidiSetup(self.config).init()
         #Quantizer(self.stars, self.midi.tempo, self.images.width)

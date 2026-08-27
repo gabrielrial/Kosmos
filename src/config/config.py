@@ -59,6 +59,16 @@ class InstrumentNames:
     
 
 @dataclass
+class HarmonyConfig:
+    """Configuration related to harmony generation."""
+
+    # Total phrase length of a nebula in beats. This is the total amount of time
+    # that the generated chords for one nebula will occupy before moving to the
+    # next phrase. A value like 32 means roughly two bars at 4/4.
+    nebula_total_duration_beats: int = 32
+
+
+@dataclass
 class Config:
     star_detector: StarDetectorConfig
     small_stars: SmallStarsConfig
@@ -66,6 +76,7 @@ class Config:
     instrument: InstrumentConfig
     images: ImageConfig
     instruments_name: InstrumentNames
+    harmony: HarmonyConfig
 
     # Paths (optional, for easier testing)
     image_path: Optional[str] = None
@@ -153,6 +164,9 @@ class Config:
                 instrument_bass=data.get("instrument_name", {}).get("bass", "Bass"),
                 instrument_pad=data.get("instrument_name", {}).get("pad", "Pad")
             ),
+            harmony=HarmonyConfig(
+                nebula_total_duration_beats=data.get("harmony", {}).get("nebula_total_duration_beats", 32)
+            ),
             
             image_path=data.get("image_path"),
             output_dir=data.get("output_dir"),
@@ -185,6 +199,9 @@ class Config:
                 "bass_speed_beats": self.instrument.bass_speed_beats,
                 "bass_max_note_duration_beats": self.instrument.bass_max_note_duration_beats,
                 "stars_speed_beats": self.instrument.stars_speed_beats,
+            },
+            "harmony": {
+                "nebula_total_duration_beats": self.harmony.nebula_total_duration_beats
             },
         }
 
@@ -227,6 +244,9 @@ class Config:
             errors.append(f"bass_max_note_duration_beats must be positive")
         if self.instrument.stars_speed_beats <= 0:
             errors.append(f"stars_speed_beats must be positive")
+
+        if self.harmony.nebula_total_duration_beats <= 0:
+            errors.append(f"nebula_total_duration_beats must be positive")
 
         if errors:
             raise ValueError(
