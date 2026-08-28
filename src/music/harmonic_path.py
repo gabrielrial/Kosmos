@@ -6,6 +6,7 @@ separate from the UI / pipeline / MIDI logic.
 
 from __future__ import annotations
 
+import random
 from typing import Iterable, List
 
 from models.chords import Chord, ChordType
@@ -88,12 +89,21 @@ class HarmonicPath:
                 ch.duration = dur
             return chords
 
-        sorted_colors = sorted(colors, key=lambda c: getattr(c, 'weight', 0.0), reverse=True)[:5]
-        durations = self.distribute_chords_by_weight(sorted_colors, total_beats, subdivision=subdivision)
+        dominant_colors = sorted(
+            colors,
+            key=lambda c: getattr(c, 'weight', 0.0),
+            reverse=True,
+        )[:5]
+        random.shuffle(dominant_colors)
+        durations = self.distribute_chords_by_weight(
+            dominant_colors,
+            total_beats,
+            subdivision=subdivision,
+        )
 
         chords = []
         root_cycle = [71, 62, 65, 68]  # B, D, F, Ab
-        for idx, color in enumerate(sorted_colors):
+        for idx, color in enumerate(dominant_colors):
             root = root_cycle[idx % len(root_cycle)]
             chord_type = ChordType.MAJOR if getattr(color, 'brightness', 0.5) > 0.5 else ChordType.MINOR
             chord = Chord(root=root, chord_type=chord_type, inversion=0)

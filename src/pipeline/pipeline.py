@@ -26,6 +26,7 @@ from models.star import Stars
 from midi.clock import MidiClockGenerator
 from midi.star_player import StarMidiPlayer
 from midi.midi_creator import MidiSheet
+from midi.realtime_player import NebulaRealtimeMidiPlayer, StarRealtimeMidiPlayer
 
 
 class ImageToMidi:
@@ -82,28 +83,48 @@ class ImageToMidi:
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
         nebulas = CloudDetector(self.images, self.stars, self.config).detect()
 
-        # Delegate orchestration to MusicOrchestrator (keeps pipeline free of algorithms)
-        try:
-            orchestrator = MusicOrchestrator(tempo_bpm=self.config.tempo.bpm)
-            result = orchestrator.orchestrate(nebulas=nebulas, stars_obj=self.stars, images=self.images, quant=None, mapper=None)
+        self.midi = MidiSetup(self.config).init()
+        quantizer = Quantizer(self.stars, self.midi.tempo, self.images.width)
+        orchestrator = MusicOrchestrator(
+            tempo_bpm=self.config.tempo.bpm,
+            nebula_total_duration_beats=self.config.harmony.nebula_total_duration_beats,
+            subdivision=self.config.tempo.subdivision,
+        )
+        result = orchestrator.orchestrate(
+            nebulas=nebulas,
+            stars_obj=self.stars,
+            images=self.images,
+            quant=quantizer,
+        )
 
-            timeline = result.get('timeline', [])
-            mapped = result.get('mapped_star_notes', [])
+        timeline = result["timeline"]
+        mapped = result["mapped_star_notes"]
+        print(
+            f"[ORCHESTRATOR] Generated timeline items: {len(timeline)}, "
+            f"mapped star notes: {len(mapped)}"
+        )
+        for i, item in enumerate(timeline[:10]):
+            root = getattr(item.chord, "note", getattr(item.chord, "root", None))
+            print(
+                f"  T{i}: {item.start_beat:.2f} -> "
+                f"{item.end_beat:.2f} root={root}"
+            )
 
-            print(f"[ORCHESTRATOR] Generated timeline items: {len(timeline)}, mapped star notes: {len(mapped)}")
-
-            # Brief debug print
-            for i, ti in enumerate(timeline[:10]):
-                root = getattr(ti.chord, 'note', getattr(ti.chord, 'root', None))
-                print(f"  T{i}: {ti.start_beat:.2f} -> {ti.end_beat:.2f} root={root}")
-
-        except Exception as e:
-            print(f"[WARN] Orchestration failed: {e}")
-
-        #self.midi = MidiSetup(self.config).init()
-        #Quantizer(self.stars, self.midi.tempo, self.images.width)
-        #self.midi_track.add_instrument(self.stars.small_stars, 0)
-        #self.midi_track.save("kosmos2.mid")
+        stars_player = StarRealtimeMidiPlayer(
+            mapped,
+            self.midi.outport["kosmos_stars"],
+            self.config.tempo.bpm,
+        )
+        nebulas_player = NebulaRealtimeMidiPlayer(
+            timeline,
+            self.midi.outport["kosmos_bass"],
+            self.config.tempo.bpm,
+        )
+        print("[MIDI] Starting stars and nebulas in separate real-time threads")
+        stars_player.start()
+        nebulas_player.start()
+        stars_player.join()
+        nebulas_player.join()
 
 
         
