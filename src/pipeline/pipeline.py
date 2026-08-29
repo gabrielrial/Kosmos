@@ -99,6 +99,10 @@ class ImageToMidi:
 
         timeline = result["timeline"]
         mapped = result["mapped_star_notes"]
+        loop_beats = max(
+            (item.end_beat for item in timeline),
+            default=self.config.harmony.nebula_total_duration_beats,
+        )
         print(
             f"[ORCHESTRATOR] Generated timeline items: {len(timeline)}, "
             f"mapped star notes: {len(mapped)}"
@@ -114,17 +118,27 @@ class ImageToMidi:
             mapped,
             self.midi.outport["kosmos_stars"],
             self.config.tempo.bpm,
+            loop_beats,
         )
         nebulas_player = NebulaRealtimeMidiPlayer(
             timeline,
             self.midi.outport["kosmos_bass"],
             self.config.tempo.bpm,
+            loop_beats,
         )
+        self.realtime_players = (stars_player, nebulas_player)
         print("[MIDI] Starting stars and nebulas in separate real-time threads")
         stars_player.start()
         nebulas_player.start()
-        stars_player.join()
-        nebulas_player.join()
+        try:
+            stars_player.join()
+            nebulas_player.join()
+        except KeyboardInterrupt:
+            print("[MIDI] Stopping real-time playback")
+            for player in self.realtime_players:
+                player.stop()
+            for player in self.realtime_players:
+                player.join()
 
 
         

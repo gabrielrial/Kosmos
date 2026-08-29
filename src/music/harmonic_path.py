@@ -106,7 +106,8 @@ class HarmonicPath:
         for idx, color in enumerate(dominant_colors):
             root = root_cycle[idx % len(root_cycle)]
             chord_type = ChordType.MAJOR if getattr(color, 'brightness', 0.5) > 0.5 else ChordType.MINOR
-            chord = Chord(root=root, chord_type=chord_type, inversion=0)
+            # Generate root-position chords for now; inversion can be reintroduced later.
+            chord = Chord(root=root, chord_type=chord_type)
             chord.duration = durations[idx]
             chords.append(chord)
 
