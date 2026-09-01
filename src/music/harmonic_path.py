@@ -210,10 +210,26 @@ class HarmonicPath:
         )
 
         chords = []
+        # Keep each nebula anchored to a single harmonic group. The first chord
+        # defines the group and every next chord moves only one step forward or
+        # backward inside that same cycle. This makes the progression feel stable,
+        # rotational, and intentionally close to the original root movement.
+        root_cycle = [71, 62, 65, 68]  # B, D, F, Ab
+        current_index = 1  # Start on D by default so the nebula begins in the D group.
+
         for idx, color in enumerate(dominant_colors):
-            group_index = idx % len(self.scale.groups)
-            slot_index = idx % 4
-            root = self.scale.get_root(group_index, slot_index)
+            if idx > 0:
+                prev_brightness = float(getattr(dominant_colors[idx - 1], 'brightness', 0.5))
+                current_brightness = float(getattr(color, 'brightness', 0.5))
+                if current_brightness > prev_brightness:
+                    direction = 1
+                elif current_brightness < prev_brightness:
+                    direction = -1
+                else:
+                    direction = 0
+                current_index = (current_index + direction) % len(root_cycle)
+
+            root = root_cycle[current_index]
             chord_type = ChordType.MAJOR if getattr(color, 'brightness', 0.5) > 0.5 else ChordType.MINOR
             # Generate root-position chords for now; inversion can be reintroduced later.
             chord = Chord(root=root, chord_type=chord_type)

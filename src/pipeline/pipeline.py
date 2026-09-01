@@ -13,7 +13,7 @@ from typing import Tuple, List, Optional
 
 from config.config import ConfigLoader
 from quantizer.quantizer import Quantizer
-from setup.midi import MidiSetup
+from setup.a import MidiSetup
 from image.img_pipeline import ImagePipeLine
 from midi.device import MidiDevice
 from midi.tempo import Tempo
@@ -43,7 +43,7 @@ class ImageToMidi:
         self.output_path = output_dir
 
         # Components (initialized during process())
-        self.device: MidiDevice | None
+        self.device: MidiDevice
         self.outport = None
         self.ports = (
             {}
@@ -78,6 +78,9 @@ class ImageToMidi:
     def process(self):
 
         #
+        self.midi = MidiSetup(self.config).init()
+
+        """
         self.images = ImagePipeLine(self.image_path, self.config.images).process()
 
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
@@ -97,7 +100,6 @@ class ImageToMidi:
             images=self.images,
             quant=quantizer,
         )
-
         timeline = result["timeline"]
         mapped = result["mapped_star_notes"]
         loop_beats = max(
@@ -141,8 +143,11 @@ class ImageToMidi:
             for player in self.realtime_players:
                 player.join()
 
+        """
+        self.midi.clock.run()
 
-        
+
+
 
 
         # print(self.midi.outport)

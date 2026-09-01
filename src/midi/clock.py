@@ -40,9 +40,13 @@ class MidiClockGenerator():
             outport: MIDI output port
             tempo: Tempo object with BPM information
         """
-        super().__init__(outport, channel_base=0)
+        #super().__init__(outport, channel_base=0)
+
+        print(f"Port: {outport} BPM: {tempo}")
         self.tempo = tempo
         self.daemon = True  # Daemon thread (doesn't block program exit)
+        self.outport = outport
+        self.running = True
     
     def run(self):
         """
@@ -61,7 +65,7 @@ class MidiClockGenerator():
                 
                 # Calculate interval between clocks
                 # clock_interval = beat_duration / PPQN
-                clock_interval = self.tempo.beat_duration / self.PPQN
+                clock_interval = (60 / self.tempo) / self.PPQN
                 
                 # Send MIDI clock
                 self._send_clock()
@@ -82,7 +86,7 @@ class MidiClockGenerator():
     def _send_start(self):
         """Sends MIDI START message."""
         self.outport.send(mido.Message('start'))
-        self._log("START", f"BPM={self.tempo.bpm if self.tempo else 'unknown'}")
+        self._log("START", f"BPM={self.tempo if self.tempo else 'unknown'}")
     
     def _send_clock(self):
         """Sends a MIDI CLOCK pulse."""
