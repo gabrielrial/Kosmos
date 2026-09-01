@@ -67,6 +67,10 @@ class HarmonyConfig:
     # next phrase. A value like 32 means roughly two bars at 4/4.
     nebula_total_duration_beats: int = 32
 
+    # Octave offset used for harmonic root generation.
+    # 0 = C2 (MIDI 36), +1 = C3 (MIDI 48), -1 = C1 (MIDI 24).
+    octave_offset: int = 0
+
 
 @dataclass
 class Config:
@@ -165,7 +169,8 @@ class Config:
                 instrument_pad=data.get("instrument_name", {}).get("pad", "Pad")
             ),
             harmony=HarmonyConfig(
-                nebula_total_duration_beats=data.get("harmony", {}).get("nebula_total_duration_beats", 32)
+                nebula_total_duration_beats=data.get("harmony", {}).get("nebula_total_duration_beats", 32),
+                octave_offset=data.get("harmony", {}).get("octave_offset", 0)
             ),
             
             image_path=data.get("image_path"),
@@ -201,7 +206,8 @@ class Config:
                 "stars_speed_beats": self.instrument.stars_speed_beats,
             },
             "harmony": {
-                "nebula_total_duration_beats": self.harmony.nebula_total_duration_beats
+                "nebula_total_duration_beats": self.harmony.nebula_total_duration_beats,
+                "octave_offset": self.harmony.octave_offset
             },
         }
 
@@ -247,6 +253,10 @@ class Config:
 
         if self.harmony.nebula_total_duration_beats <= 0:
             errors.append(f"nebula_total_duration_beats must be positive")
+
+        # Octave offset is an integer shift relative to C2.
+        if not isinstance(self.harmony.octave_offset, int):
+            errors.append(f"octave_offset must be an integer")
 
         if errors:
             raise ValueError(

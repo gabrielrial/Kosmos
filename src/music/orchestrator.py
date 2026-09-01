@@ -155,6 +155,7 @@ class MusicOrchestrator:
         overlap_policy: str = "priority",
         nebula_total_duration_beats: float = 32.0,
         subdivision: int = 16,
+        octave_offset: int = 0,
     ):
         self.tempo_bpm = tempo_bpm
         self.nebulae: List[Nebula] = []
@@ -163,6 +164,7 @@ class MusicOrchestrator:
         self.overlap_policy = overlap_policy
         self.nebula_total_duration_beats = float(nebula_total_duration_beats)
         self.subdivision = int(subdivision)
+        self.octave_offset = int(octave_offset)
 
     # --- registration API -------------------------------------------------
     def register_nebulae(self, nebulae: Iterable[Nebula]) -> None:
@@ -209,7 +211,7 @@ class MusicOrchestrator:
                 # nebula phrase across the colors by their relative weight.
                 if hasattr(neb, "dominant_colors") and getattr(neb, "dominant_colors"):
                     from music.harmonic_path import HarmonicPath
-                    generated = HarmonicPath(neb).generate(total_beats=self.nebula_total_duration_beats, subdivision=self.subdivision)
+                    generated = HarmonicPath(neb, octave_offset=self.octave_offset).generate(total_beats=self.nebula_total_duration_beats, subdivision=self.subdivision)
                     chords = generated
                 else:
                     # Fallback: equal duration across chord list with phrase size budget.

@@ -89,6 +89,7 @@ class ImageToMidi:
             tempo_bpm=self.config.tempo.bpm,
             nebula_total_duration_beats=self.config.harmony.nebula_total_duration_beats,
             subdivision=self.config.tempo.subdivision,
+            octave_offset=self.config.harmony.octave_offset,
         )
         result = orchestrator.orchestrate(
             nebulas=nebulas,

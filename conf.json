@@ -31,6 +31,7 @@
     "pad": "Pad"
   },
   "harmony": {
-    "nebula_total_duration_beats": 64
+    "nebula_total_duration_beats": 64,
+    "octave_offset": 0
   }
 }
