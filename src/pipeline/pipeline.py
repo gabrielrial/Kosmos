@@ -13,10 +13,10 @@ from typing import Tuple, List, Optional
 
 from config.config import ConfigLoader
 from quantizer.quantizer import Quantizer
-from setup.a import MidiSetup
+from setup.midi import MidiSetup
 from image.img_pipeline import ImagePipeLine
 from midi.device import MidiDevice
-from midi.tempo import Tempo
+from models.tempo import Tempo
 from models.images import Images
 from detection.star_detector import StarDetector
 from detection.cloud_detector import CloudDetector

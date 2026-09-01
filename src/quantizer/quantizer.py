@@ -1,5 +1,5 @@
 from models.star import Stars
-from midi.tempo import Tempo
+from models.tempo import Tempo
 
 
 class Quantizer:

@@ -1,109 +1,120 @@
-"""
-MIDI Clock generator for external synchronization.
-Allows synchronization with DAWs like Ableton Live.
-"""
-
+import threading
 import time
 import mido
-from typing import Optional
+
+from models.tempo import Tempo
 
 
-class MidiClockGenerator():
+class MidiClockGenerator(threading.Thread):
     """
     Generates MIDI Clock for synchronization with external equipment/software.
-    
-    MIDI Clock is a standard that sends 24 pulses per beat.
+
+    MIDI Clock sends 24 clock pulses per quarter note (beat).
     This allows DAWs like Ableton Live to synchronize with Kosmos.
-    
+
     Features:
-    - Sends START on initialization
+    - Sends START when the clock starts
     - Sends CLOCK continuously (24 per beat)
     - Sends STOP when stopping
-    - Daemon thread to not block program exit
-    
+    - Runs in a daemon thread
+
     Example:
-        >>> tempo = Tempo(120)  # 120 BPM
+        >>> tempo = Tempo(120)
         >>> clock = MidiClockGenerator(outport, tempo)
-        >>> clock.start()  # Starts in daemon thread
+        >>> clock.start()
         >>> # Rest of the code can continue
-        >>> clock.stop()   # Stop when necessary
+        >>> clock.stop()
     """
-    
-    # MIDI standard: 24 clocks per beat
-    PPQN = 24  # Pulses Per Quarter Note
-    
-    def __init__(self, outport, tempo=None):
+
+    # MIDI standard: 24 clocks per quarter note
+    PPQN = 24
+
+    def __init__(self, outport, tempo: Tempo):
         """
         Initializes the MIDI Clock generator.
-        
+
         Args:
             outport: MIDI output port
             tempo: Tempo object with BPM information
         """
-        #super().__init__(outport, channel_base=0)
+        super().__init__(daemon=True)
 
-        print(f"Port: {outport} BPM: {tempo}")
-        self.tempo = tempo
-        self.daemon = True  # Daemon thread (doesn't block program exit)
         self.outport = outport
-        self.running = True
-    
+        self.tempo = tempo
+        self.running = False
+
     def run(self):
         """
         Generates MIDI Clock continuously.
-        
-        Runs in a daemon thread.
+
         """
+        clock_interval = (
+                    self.tempo.beat_duration / self.PPQN
+                )
+        print(
+            f"BPM: {self.tempo.bpm}, "
+            f"beat_duration: {self.tempo.beat_duration}, "
+            f"clock_interval: {clock_interval}"
+            )
+        if self.tempo is None:
+            raise ValueError("Tempo is required")
+
+        self.running = True
+
         try:
-            # Send START
             self._send_start()
-            
-            # Generate clocks continuously
+
             while self.running:
-                if not self.tempo:
-                    break
-                
-                # Calculate interval between clocks
-                # clock_interval = beat_duration / PPQN
-                clock_interval = (60 / self.tempo) / self.PPQN
-                
-                # Send MIDI clock
+                clock_interval = (
+                    self.tempo.beat_duration / self.PPQN
+                )
+
                 self._send_clock()
                 time.sleep(clock_interval)
-        
+
         except KeyboardInterrupt:
             pass
+
         finally:
-            # Enviar STOP
             self._send_stop()
-    
+
     def stop(self):
         """Stops the MIDI Clock generation."""
         self.running = False
-        # Give time for the last loop to finish
-        time.sleep(1)
-    
+
     def _send_start(self):
         """Sends MIDI START message."""
-        self.outport.send(mido.Message('start'))
-        self._log("START", f"BPM={self.tempo if self.tempo else 'unknown'}")
-    
+        self.outport.send(mido.Message("start"))
+        self._log("START", f"BPM={self.tempo.bpm}")
+
     def _send_clock(self):
-        """Sends a MIDI CLOCK pulse."""
-        self.outport.send(mido.Message('clock'))
+        now = time.perf_counter()
+
+        if hasattr(self, "_last_clock"):
+            interval = now - self._last_clock
+            print(f"Clock interval: {interval * 1000:.3f} ms")
     
+        self._last_clock = now
+    
+        self.outport.send(mido.Message("clock"))
+
     def _send_stop(self):
         """Sends MIDI STOP message."""
-        self.outport.send(mido.Message('stop'))
+        self.outport.send(mido.Message("stop"))
         self._log("STOP", "Clock generator stopped")
-    
+
     def _log(self, event: str, details: str = ""):
         """Clock event logging."""
         msg = f"[MIDI Clock] {event}"
+
         if details:
             msg += f" - {details}"
+
         print(msg)
-    
+
     def __repr__(self) -> str:
-        bpm = self.tempo.bpm if self.tempo else "unknown"
-        return f"MidiClockGenerator(BPM={bpm}, PPQN={self.PPQN})"
+        return (
+            f"MidiClockGenerator("
+            f"BPM={self.tempo.bpm}, "
+            f"PPQN={self.PPQN})"
+        )
