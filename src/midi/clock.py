@@ -48,14 +48,6 @@ class MidiClockGenerator(threading.Thread):
         Generates MIDI Clock continuously.
 
         """
-        clock_interval = (
-                    self.tempo.beat_duration / self.PPQN
-                )
-        print(
-            f"BPM: {self.tempo.bpm}, "
-            f"beat_duration: {self.tempo.beat_duration}, "
-            f"clock_interval: {clock_interval}"
-            )
         if self.tempo is None:
             raise ValueError("Tempo is required")
 
@@ -88,14 +80,6 @@ class MidiClockGenerator(threading.Thread):
         self._log("START", f"BPM={self.tempo.bpm}")
 
     def _send_clock(self):
-        now = time.perf_counter()
-
-        if hasattr(self, "_last_clock"):
-            interval = now - self._last_clock
-            print(f"Clock interval: {interval * 1000:.3f} ms")
-    
-        self._last_clock = now
-    
         self.outport.send(mido.Message("clock"))
 
     def _send_stop(self):
