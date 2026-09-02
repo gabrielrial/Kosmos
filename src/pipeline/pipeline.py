@@ -80,14 +80,12 @@ class ImageToMidi:
         #
         self.midi = MidiSetup(self.config).init()
 
-        """
         self.images = ImagePipeLine(self.image_path, self.config.images).process()
-
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
         nebulas = CloudDetector(self.images, self.stars, self.config).detect()
-
-        self.midi = MidiSetup(self.config).init()
         quantizer = Quantizer(self.stars, self.midi.tempo, self.images.width)
+
+
         orchestrator = MusicOrchestrator(
             tempo_bpm=self.config.tempo.bpm,
             nebula_total_duration_beats=self.config.harmony.nebula_total_duration_beats,
@@ -100,6 +98,7 @@ class ImageToMidi:
             images=self.images,
             quant=quantizer,
         )
+        """
         timeline = result["timeline"]
         mapped = result["mapped_star_notes"]
         loop_beats = max(
@@ -144,140 +143,9 @@ class ImageToMidi:
                 player.join()
 
         """
-        self.midi.clock.run()
+        #self.midi.clock.run()
 
 
-
-
-
-        # print(self.midi.outport)
-
-        # Image Processo
-        ## Check and capture exception if it is requiere
-
-        # Start Detector
-        # print(f"Small stars count: {self.stars.small_stars.__len__()}")
-        # print(f"Big stars count: {self.stars.big_stars.__len__()}")
-
-        #self._setup_midi()
-        #self._start_playback()
-        #self.wait()
-
-    '''
-            self._start_playback()
-
-            self._processed = True
-            return self
-
-        except Exception:
-            self.cleanup()
-            raise
-
-    
-    def _start_playback(self) 
-        """Stars all instruments."""
-        print("\n[Starting Playback]")
-        
-        # Iniciar clock
-        self.clock_gen.start()
-        print("  → Clock initialized")
-        
-        # Iniciar players
-        if self.star_player:
-            self.star_player.start()
-            print("  → Star player iniciado")
-        
-        if self.bass_player:
-            self.bass_player.start()
-            print("  → Bass player iniciado")
-        
-        self._started = True
-    
-    def wait(self):
-        """
-        Espera a que todos los players terminen de ejecutarse.
-        
-        Must be called after process().
-        """
-        if not self._started:
-            print("[WARN] Pipeline has not been started yet")
-            return
-        
-        print("\n[Waiting for playback...]")
-        
-        try:
-            if self.star_player:
-                self.star_player.join()
-            if self.bass_player:
-                self.bass_player.join()
-            
-            print("[OK] Playback completed")
-        
-        except KeyboardInterrupt:
-            print("\n[OK] Playback interrupted by user")
-            self.stop()
-    
-    def stop(self):
-        """Detiene todos los players de forma segura."""
-        if self.clock_gen:
-            self.clock_gen.stop()
-        if self.star_player:
-            self.star_player.stop()
-        if self.bass_player:
-            self.bass_player.stop()
-        
-        print("[OK] All players where stopped")
-    
-    def cleanup(self):
-        """Resource cleaning: closes all MIDI ports, etc."""
-        print("\n[Limpieza]")
-        
-        # Stop if running
-        if self._started:
-            self.stop()
-        
-        # Cerrar puertos MIDI
-        if self.device:
-            self.device.close_all()
-            print("  ✓ MIDI ports closed")
-        
-        print("[OK] Pipeline clear")
-    
-    def summary(self) -> dict:
-        """
-        Retorna un resumen del procesamiento realizado.
-        
-        Returns:
-            Dict with pipeline statistics
-        """
-        return {
-            "config_file": self.config,
-            "image_path": str(self.image_path),
-            "tempo_bpm": self.tempo.bpm if self.tempo else None,
-            "small_stars_count": len(self.small_stars),
-            "big_stars_count": len(self.big_stars),
-            "dominant_colors_count": len(self.dominant_colors),
-            "processed": self._processed,
-            "started": self._started,
-        }
-    
-    def __enter__(self):
-        """Context manager: entrada."""
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager: automatic cleanup."""
-        self.cleanup()
-    
-    def __repr__(self) -> str:
-        status = "running" if self._started else "idle"
-        return (
-            f"ImageToMidiPipeline("
-            f"image={Path(self.image_path).name}, "
-            f"bpm={self.config.tempo.bpm}, "
-            f"status={status})"
-        )
-    '''
 
     def _setup_midi(self):
         self.small_star_player = StarMidiPlayer(

@@ -11,6 +11,7 @@ This file implements safe, minimal functionality so other modules can
 use the interfaces and tests can be written. Detailed policies and
 optimizations are left for later iterations.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from typing import List, Optional, Iterable, Tuple
 
 from models.nebula import Nebula
 from models.chords import Chord
+from midi.midi_composer import color_to_note, note_to_name
 
 
 @dataclass
@@ -193,15 +195,23 @@ class MusicOrchestrator:
             neb_weight = getattr(neb, "area", 1.0)
 
             chords = list(getattr(neb, "chords", []) or [])
-            if not chords and hasattr(neb, "dominant_colors") and getattr(neb, "dominant_colors"):
+            if (
+                not chords
+                and hasattr(neb, "dominant_colors")
+                and getattr(neb, "dominant_colors")
+            ):
                 from music.harmonic_path import HarmonicPath
-                chords = HarmonicPath(neb).generate(total_beats=self.nebula_total_duration_beats, subdivision=self.subdivision)
+
+                chords = HarmonicPath(neb).generate(
+                    total_beats=self.nebula_total_duration_beats,
+                    subdivision=self.subdivision,
+                )
                 print(
                     f"[HARMONY DEBUG] Nebula {getattr(neb, 'x', 'n')} -> Generated {len(chords)} chords "
                     f"from dominant colors total_duration={self.nebula_total_duration_beats}"
                 )
                 for j, ch in enumerate(chords):
-                    root_val = getattr(ch, 'note', getattr(ch, 'root', None))
+                    root_val = getattr(ch, "note", getattr(ch, "root", None))
                     print(
                         f"    {j}: root={root_val} type={ch.chord_type.name} "
                         f"duration={getattr(ch, 'duration', 0)} notes={ch.chord_maker()}"
@@ -211,7 +221,13 @@ class MusicOrchestrator:
                 # nebula phrase across the colors by their relative weight.
                 if hasattr(neb, "dominant_colors") and getattr(neb, "dominant_colors"):
                     from music.harmonic_path import HarmonicPath
-                    generated = HarmonicPath(neb, octave_offset=self.octave_offset).generate(total_beats=self.nebula_total_duration_beats, subdivision=self.subdivision)
+
+                    generated = HarmonicPath(
+                        neb, octave_offset=self.octave_offset
+                    ).generate(
+                        total_beats=self.nebula_total_duration_beats,
+                        subdivision=self.subdivision,
+                    )
                     chords = generated
                 else:
                     # Fallback: equal duration across chord list with phrase size budget.
@@ -229,7 +245,13 @@ class MusicOrchestrator:
 
                 # Ensure each chord in a nebula does not overlap with the next by
                 # placing them sequentially using the cumulative cursor `cum`.
-                ti = TimelineItem(start_beat=cum, end_beat=cum + float(duration), chord=ch, source_nebula=neb, weight=float(neb_weight))
+                ti = TimelineItem(
+                    start_beat=cum,
+                    end_beat=cum + float(duration),
+                    chord=ch,
+                    source_nebula=neb,
+                    weight=float(neb_weight),
+                )
                 timeline_raw.append(ti)
                 cum += float(duration)
 
@@ -294,10 +316,21 @@ class MusicOrchestrator:
             primary = max(active, key=lambda t: t.weight)
 
             # create segment primary from time -> next_time
-            seg = TimelineItem(start_beat=time, end_beat=next_time, chord=primary.chord, source_nebula=primary.source_nebula, weight=primary.weight)
+            seg = TimelineItem(
+                start_beat=time,
+                end_beat=next_time,
+                chord=primary.chord,
+                source_nebula=primary.source_nebula,
+                weight=primary.weight,
+            )
 
             # merge with previous if same chord and contiguous
-            if resolved and resolved[-1].chord == seg.chord and abs(resolved[-1].end_beat - seg.start_beat) < 1e-9 and resolved[-1].source_nebula == seg.source_nebula:
+            if (
+                resolved
+                and resolved[-1].chord == seg.chord
+                and abs(resolved[-1].end_beat - seg.start_beat) < 1e-9
+                and resolved[-1].source_nebula == seg.source_nebula
+            ):
                 resolved[-1].end_beat = seg.end_beat
             else:
                 resolved.append(seg)
@@ -320,7 +353,9 @@ class MusicOrchestrator:
             mapped.append(mapped_note)
         return mapped
 
-    def orchestrate(self, nebulas: Iterable[Nebula], stars_obj, images=None, quant=None, mapper=None) -> dict:
+    def orchestrate(
+        self, nebulas: Iterable[Nebula], stars_obj, images=None, quant=None, mapper=None
+    ) -> dict:
         """High-level orchestration convenience method.
 
         - nebulas: iterable of Nebula objects (each with .chords)
@@ -334,6 +369,9 @@ class MusicOrchestrator:
         # Register nebulas
         self.register_nebulae(nebulas)
 
+        # Determine note based on the color
+        self.nebula_chord_composer()
+
         # Build timeline
         timeline = self.build_harmonic_timeline()
 
@@ -344,7 +382,9 @@ class MusicOrchestrator:
         all_stars = []
         try:
             # stars_obj may be the Stars container or a simple iterable
-            all_stars = list(getattr(stars_obj, 'small_stars', [])) + list(getattr(stars_obj, 'big_stars', []))
+            all_stars = list(getattr(stars_obj, "small_stars", [])) + list(
+                getattr(stars_obj, "big_stars", [])
+            )
         except Exception:
             try:
                 all_stars = list(stars_obj)
@@ -352,28 +392,30 @@ class MusicOrchestrator:
                 all_stars = []
 
         # ticks per beat from quantizer
-        ticks_per_beat = getattr(quant, 'ticks_per_beat', 960) if quant is not None else 960
+        ticks_per_beat = (
+            getattr(quant, "ticks_per_beat", 960) if quant is not None else 960
+        )
 
         # Build StarEvent instances from star models
         star_events: List[StarEvent] = []
         for st in all_stars:
-            if images is not None and getattr(images, 'width', 0) and timeline_end > 0:
+            if images is not None and getattr(images, "width", 0) and timeline_end > 0:
                 ts = (st.x / float(images.width)) * timeline_end
             else:
                 ts = 0.0
 
             # duration conversion from ticks to beats if duration present
-            if getattr(st, 'duration', 0):
+            if getattr(st, "duration", 0):
                 dur_beats = float(st.duration) / float(ticks_per_beat)
             else:
                 dur_beats = 1.0
 
             se = StarEvent(
-                original_note=getattr(st, 'note', 60),
-                velocity=getattr(st, 'velocity', 100),
+                original_note=getattr(st, "note", 60),
+                velocity=getattr(st, "velocity", 100),
                 timestamp_beat=ts,
                 duration_beat=dur_beats,
-                pan=getattr(st, 'pan', None),
+                pan=getattr(st, "pan", None),
                 source_star=st,
             )
             star_events.append(se)
@@ -391,8 +433,8 @@ class MusicOrchestrator:
         mapped = self.map_star_events(mapper)
 
         return {
-            'timeline': timeline,
-            'mapped_star_notes': mapped,
+            "timeline": timeline,
+            "mapped_star_notes": mapped,
         }
 
     def export_sequences(self) -> dict:
@@ -409,3 +451,16 @@ class MusicOrchestrator:
         self.nebulae = []
         self.star_events = []
         self.timeline = []
+
+    def nebula_chord_composer(self):
+
+        colors = list(getattr(self.nebula, 'dominant_colors', []) or [])
+        print(colors)
+        for nb in self.nebulae:
+            
+            for color in nb.dominant_colors:
+
+                note = color_to_note(color)
+                nb.note.append(note)
+
+                print(f"Valor de nota: {note} : {note_to_name(note)}")
