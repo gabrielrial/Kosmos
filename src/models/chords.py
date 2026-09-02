@@ -20,7 +20,6 @@ class Chord:
         chord_type: Optional[ChordType] = None,
         inversion: int = 0,
         root: Optional[int] = None,
-        duration: Optional[float] = None,
     ):
         if root is not None:
             if note is not None and note != root:
@@ -36,7 +35,6 @@ class Chord:
         self.root = note
         self.chord_type = chord_type
         self.inversion = inversion
-        self.duration = duration
 
     @property
     def root_note(self):

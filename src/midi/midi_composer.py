@@ -1,22 +1,22 @@
 from models.color import Color
-
+from models.chords import ChordType
 
 class MidiFactory:
     def __init__(self):
         pass
 
-    def note_to_name(note: int) -> str:
+    def note_to_name(self, note: int) -> str:
         notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
         return notes[note % 12]
 
-    def brightness_to_mode(brightness: float) -> bool:
-        if brightness > 0.5:
-            return True
+    def brightness_to_mode(self, color: Color) -> ChordType:
+        if color.brightness > 50:
+            return ChordType.MAJOR
         else:
-            return False
+            return ChordType.MINOR
 
-    def color_to_note(color: Color) -> int:
+    def color_to_note(self, color: Color) -> int:
         """
         Return a value between 0 - 11, corresponding to each note from C - B
         """

@@ -62,7 +62,7 @@ class ImageToMidi:
         #
         ## Data
         self.stars: Stars = Stars()
-        self.nebulosas: NebulaMidi = NebulaMidi()
+        self.nebulosas: list[NebulaMidi] = []
         # self.dominant_colors: List = []
         #
         ## Status

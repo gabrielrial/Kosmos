@@ -408,9 +408,9 @@ class CloudDetector:
                     weight = count / total_pixels if total_pixels > 0 else 0
                     nebula.dominant_colors.append(
                         Color(
-                            hue=float(h),
-                            saturation=float(s),
-                            brightness=float(v),
+                            hue=float(h * 360),
+                            saturation=float(s * 100),
+                            brightness=float(v * 100),
                             weight=float(weight),
                         )
                     )
@@ -426,4 +426,6 @@ class CloudDetector:
                     )
 
             except Exception as e:
-                print(f"[HARMONY DEBUG] Could not store dominant colors for nebula {i + 1}: {e}")
+                print(
+                    f"[HARMONY DEBUG] Could not store dominant colors for nebula {i + 1}: {e}"
+                )
