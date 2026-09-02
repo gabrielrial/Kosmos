@@ -27,7 +27,8 @@ from midi.clock import MidiClockGenerator
 from midi.star_player import StarMidiPlayer
 from midi.midi_creator import MidiSheet
 from midi.realtime_player import NebulaRealtimeMidiPlayer, StarRealtimeMidiPlayer
-
+from midi.midi_nebulas import NebulasMidiFactory
+from models.nebula import NebulaMidi
 
 class ImageToMidi:
 
@@ -61,6 +62,7 @@ class ImageToMidi:
         #
         ## Data
         self.stars: Stars = Stars()
+        self.nebulosas: NebulaMidi = NebulaMidi()
         # self.dominant_colors: List = []
         #
         ## Status
@@ -84,20 +86,22 @@ class ImageToMidi:
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
         nebulas = CloudDetector(self.images, self.stars, self.config).detect()
         quantizer = Quantizer(self.stars, self.midi.tempo, self.images.width)
+        neb_midi = NebulasMidiFactory(self.nebulosas, nebulas).process()
 
 
-        orchestrator = MusicOrchestrator(
-            tempo_bpm=self.config.tempo.bpm,
-            nebula_total_duration_beats=self.config.harmony.nebula_total_duration_beats,
-            subdivision=self.config.tempo.subdivision,
-            octave_offset=self.config.harmony.octave_offset,
-        )
-        result = orchestrator.orchestrate(
-            nebulas=nebulas,
-            stars_obj=self.stars,
-            images=self.images,
-            quant=quantizer,
-        )
+
+        #orchestrator = MusicOrchestrator(
+        #    tempo_bpm=self.config.tempo.bpm,
+        #    nebula_total_duration_beats=self.config.harmony.nebula_total_duration_beats,
+        #    subdivision=self.config.tempo.subdivision,
+        #    octave_offset=self.config.harmony.octave_offset,
+        #)
+        #result = orchestrator.orchestrate(
+        #    nebulas=nebulas,
+        #    stars_obj=self.stars,
+        #    images=self.images,
+        #    quant=quantizer,
+        #)
         """
         timeline = result["timeline"]
         mapped = result["mapped_star_notes"]

@@ -19,7 +19,6 @@ from typing import List, Optional, Iterable, Tuple
 
 from models.nebula import Nebula
 from models.chords import Chord
-from midi.midi_composer import color_to_note, note_to_name
 
 
 @dataclass
@@ -452,15 +451,3 @@ class MusicOrchestrator:
         self.star_events = []
         self.timeline = []
 
-    def nebula_chord_composer(self):
-
-        colors = list(getattr(self.nebula, 'dominant_colors', []) or [])
-        print(colors)
-        for nb in self.nebulae:
-            
-            for color in nb.dominant_colors:
-
-                note = color_to_note(color)
-                nb.note.append(note)
-
-                print(f"Valor de nota: {note} : {note_to_name(note)}")
