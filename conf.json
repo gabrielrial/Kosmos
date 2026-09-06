@@ -8,6 +8,14 @@
 		"brightness_threshold": 70,
 		"small_stars": {
 			"contrast": 50
+		},
+		"nebula": {
+			"min_area": 100,
+			"max_area": 0,
+			"contrast_threshold": 8,
+			"saturation_threshold": 18,
+			"brightness_threshold": 20,
+			"blur_radius": 12
 		}
 	},
 	"tempo": {

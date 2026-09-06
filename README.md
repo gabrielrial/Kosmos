@@ -9,6 +9,7 @@ Kosmos analyzes astronomical images, detects stars, dominant colors, and brightn
 ## Features
 
 - Detects and classifies small and large stars.
+- Detects diffuse nebula regions using local contrast and color saturation.
 - Extracts dominant colors and reduces the image to a simplified color palette.
 - Maps star position, size, color, and brightness to MIDI events.
 - Creates virtual MIDI ports for seamless integration with a DAW.
@@ -72,6 +73,10 @@ Kosmos is configured through a JSON file. An example configuration is provided i
 | `star_detector.brightness_threshold` | Minimum brightness required to classify a star |
 | `star_detector.ring_radius` | Search radius for bright regions |
 | `star_detector.small_stars.contrast` | Minimum contrast for detecting small stars |
+| `star_detector.nebula.min_area` | Minimum connected area for a nebula |
+| `star_detector.nebula.contrast_threshold` | Minimum contrast against the local background |
+| `star_detector.nebula.saturation_threshold` | Minimum color spread for colored diffuse regions |
+| `star_detector.nebula.blur_radius` | Background scale used to measure diffuse emission |
 | `tempo.bpm` | Tempo in beats per minute |
 | `tempo.subdivision` | Beat subdivision |
 | `instrument.bass_speed_beats` | Playback speed of bass notes |
@@ -120,8 +125,9 @@ Kosmos exposes the following virtual MIDI ports:
 2. Apply saturation enhancement and optional blur.
 3. Group similar colors using a **Magic Wand–style** region-growing algorithm.
 4. Detect and classify bright stars as either small or large.
-5. Calculate each star's MIDI pitch, velocity, and stereo panning based on its position, color, and brightness.
-6. Generate `note_on` and `note_off` MIDI messages for playback in the selected DAW.
+5. Detect extended nebula regions from local contrast and saturation.
+6. Calculate each star's MIDI pitch, velocity, and stereo panning based on its position, color, and brightness.
+7. Generate `note_on` and `note_off` MIDI messages for playback in the selected DAW.
 
 ---
 

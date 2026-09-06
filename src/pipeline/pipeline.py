@@ -19,7 +19,9 @@ from midi.device import MidiDevice
 from midi.tempo import Tempo
 from models.images import Images
 from detection.star_detector import StarDetector
+from detection.nebula_detector import NebulaDetector
 from models.star import Stars
+from models.nebula import Nebulas
 from midi.clock import MidiClockGenerator
 from midi.star_player import StarMidiPlayer
 
@@ -56,6 +58,7 @@ class ImageToMidi:
         #
         ## Data
         self.stars: Stars = Stars()
+        self.nebulas: Nebulas = Nebulas()
         # self.dominant_colors: List = []
         #
         ## Status
@@ -74,6 +77,8 @@ class ImageToMidi:
         self.images = ImagePipeLine(self.image_path, self.config.images).process()
 
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
+        NebulaDetector(self.images, self.nebulas, self.config.star_detector).detect()
+        print(f"  Nebulas detected: {len(self.nebulas.regions)}")
 
         self.midi = MidiSetup(self.config).init()
         Quantizer(self.stars, self.midi.tempo, self.images.width)
