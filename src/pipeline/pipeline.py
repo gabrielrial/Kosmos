@@ -23,6 +23,7 @@ from detection.cloud_detector import CloudDetector
 from music.orchestrator import MusicOrchestrator, StarEvent
 from music.star_mapper import StarNoteMapper
 from models.star import Stars
+from models.nebula import Nebulas
 from midi.clock import MidiClockGenerator
 from midi.star_player import StarMidiPlayer
 from midi.midi_creator import MidiSheet

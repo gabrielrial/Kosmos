@@ -30,3 +30,10 @@ class NebulaMidi:
     duration: List[int] = field(default_factory=list)
     filter_curve: List[float] = field(default_factory=list)
     start_offset: float = 0.0
+
+
+@dataclass
+class Nebulas:
+    """Collection of diffuse regions detected by the standalone detector."""
+
+    regions: list[Nebula] = field(default_factory=list)

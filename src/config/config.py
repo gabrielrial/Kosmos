@@ -23,6 +23,12 @@ class StarDetectorConfig:
     brightness_threshold: int = 1000
     ring_radius: int = 2
     contrast_threshold: int = 60
+    nebula_min_area: int = 100
+    nebula_max_area: int = 0
+    nebula_contrast_threshold: float = 8.0
+    nebula_saturation_threshold: float = 18.0
+    nebula_brightness_threshold: float = 20.0
+    nebula_blur_radius: float = 12.0
 
 
 @dataclass
@@ -136,6 +142,24 @@ class Config:
                 contrast_threshold=data.get("star_detector", {})
                 .get("small_stars", {})
                 .get("contrast", 60),
+                nebula_min_area=data.get("star_detector", {})
+                .get("nebula", {})
+                .get("min_area", 100),
+                nebula_max_area=data.get("star_detector", {})
+                .get("nebula", {})
+                .get("max_area", 0),
+                nebula_contrast_threshold=data.get("star_detector", {})
+                .get("nebula", {})
+                .get("contrast_threshold", 8),
+                nebula_saturation_threshold=data.get("star_detector", {})
+                .get("nebula", {})
+                .get("saturation_threshold", 18),
+                nebula_brightness_threshold=data.get("star_detector", {})
+                .get("nebula", {})
+                .get("brightness_threshold", 20),
+                nebula_blur_radius=data.get("star_detector", {})
+                .get("nebula", {})
+                .get("blur_radius", 12),
             ),
             small_stars=SmallStarsConfig(
                 contrast=data.get("star_detector", {})
@@ -158,15 +182,15 @@ class Config:
                 ),
             ),
             images = ImageConfig(
-                saturation_boost=data.get("saturation", {}).get("saturation_boost", 2),
-                tolerance=data.get("tolerance", {}).get("tolerance", 1.5),
-                blur=data.get("blur", {}).get("blur", 0)
+                saturation_boost=data.get("images", {}).get("saturation_boost", 2),
+                tolerance=data.get("images", {}).get("tolerance", 150),
+                blur=data.get("images", {}).get("blur", 0)
             ),
             instruments_name = InstrumentNames(
-                instrument_small=data.get("instrument_name", {}).get("small_stars", "Synth Small"),
-                instrument_big=data.get("instrument_name", {}).get("big_stars", "Synth Big"),
-                instrument_bass=data.get("instrument_name", {}).get("bass", "Bass"),
-                instrument_pad=data.get("instrument_name", {}).get("pad", "Pad")
+                instrument_small=data.get("instruments_name", {}).get("small_stars", "Synth Small"),
+                instrument_big=data.get("instruments_name", {}).get("big_stars", "Synth Big"),
+                instrument_bass=data.get("instruments_name", {}).get("bass", "Bass"),
+                instrument_pad=data.get("instruments_name", {}).get("pad", "Pad")
             ),
             harmony=HarmonyConfig(
                 nebula_total_duration_beats=data.get("harmony", {}).get("nebula_total_duration_beats", 32),
@@ -189,6 +213,14 @@ class Config:
                 "ring_radius": self.star_detector.ring_radius,
                 "small_stars": {
                     "contrast": self.small_stars.contrast,
+                },
+                "nebula": {
+                    "min_area": self.star_detector.nebula_min_area,
+                    "max_area": self.star_detector.nebula_max_area,
+                    "contrast_threshold": self.star_detector.nebula_contrast_threshold,
+                    "saturation_threshold": self.star_detector.nebula_saturation_threshold,
+                    "brightness_threshold": self.star_detector.nebula_brightness_threshold,
+                    "blur_radius": self.star_detector.nebula_blur_radius,
                 },
             },
             "image": {
@@ -234,6 +266,18 @@ class Config:
         # Validate contrast
         if self.small_stars.contrast < 0:
             errors.append(f"contrast cannot be negative")
+        if self.star_detector.nebula_min_area < 1:
+            errors.append("nebula min_area must be positive")
+        if self.star_detector.nebula_max_area < 0:
+            errors.append("nebula max_area cannot be negative")
+        if self.star_detector.nebula_contrast_threshold < 0:
+            errors.append("nebula contrast_threshold cannot be negative")
+        if self.star_detector.nebula_saturation_threshold < 0:
+            errors.append("nebula saturation_threshold cannot be negative")
+        if self.star_detector.nebula_brightness_threshold < 0:
+            errors.append("nebula brightness_threshold cannot be negative")
+        if self.star_detector.nebula_blur_radius <= 0:
+            errors.append("nebula blur_radius must be positive")
 
         # Validate tolerance
         if self.images.blur < 0:
