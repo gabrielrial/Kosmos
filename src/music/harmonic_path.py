@@ -9,7 +9,8 @@ from __future__ import annotations
 import random
 from typing import Iterable, List, Sequence
 
-from models.chords import Chord, ChordType
+from models.chord import Chord
+from models.chords import ChordType
 
 
 def compute_color_expression_level(colors: Iterable[object]) -> int:

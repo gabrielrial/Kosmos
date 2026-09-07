@@ -19,7 +19,7 @@ from midi.device import MidiDevice
 from models.tempo import Tempo
 from models.images import Images
 from detection.star_detector import StarDetector
-from detection.cloud_detector import CloudDetector
+from detection.nebula_detector import NebulaDetector
 from music.orchestrator import MusicOrchestrator, StarEvent
 from music.star_mapper import StarNoteMapper
 from models.star import Stars
@@ -85,9 +85,11 @@ class ImageToMidi:
 
         self.images = ImagePipeLine(self.image_path, self.config.images).process()
         StarDetector(self.images, self.stars, self.config.star_detector).detect()
-        nebulas = CloudDetector(self.images, self.stars, self.config).detect()
-        quantizer = Quantizer(self.stars, self.midi.tempo, self.images.width)
-        neb_midi = NebulasMidiFactory(self.nebulosas, nebulas).process()
+        nebulas = NebulaDetector(
+            self.images, self.stars, self.config.star_detector
+        ).detect()
+        #quantizer = Quantizer(self.stars, self.midi.tempo, self.images.width)
+        #neb_midi = NebulasMidiFactory(self.nebulosas, nebulas).process()
 
 
 

@@ -73,6 +73,11 @@ Kosmos is configured through a JSON file. An example configuration is provided i
 | `star_detector.brightness_threshold` | Minimum brightness required to classify a star |
 | `star_detector.ring_radius` | Search radius for bright regions |
 | `star_detector.small_stars.contrast` | Minimum contrast for detecting small stars |
+| `star_detector.local_background_radius` | Scale used to estimate the local background |
+| `star_detector.detection_sigma` | Noise multiplier for the adaptive detection threshold |
+| `star_detector.minimum_distance` | Minimum distance between detected star centers |
+| `star_detector.measurement_radius` | Radius used to estimate each star's area |
+| `star_detector.small_star_max_area` | Maximum measured area for a small star |
 | `star_detector.nebula.min_area` | Minimum connected area for a nebula |
 | `star_detector.nebula.contrast_threshold` | Minimum contrast against the local background |
 | `star_detector.nebula.saturation_threshold` | Minimum color spread for colored diffuse regions |

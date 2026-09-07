@@ -23,6 +23,14 @@ class StarDetectorConfig:
     brightness_threshold: int = 1000
     ring_radius: int = 2
     contrast_threshold: int = 60
+    local_background_radius: float = 12.0
+    detection_sigma: float = 3.0
+    minimum_contrast: float = 12.0
+    minimum_brightness: float = 20.0
+    minimum_distance: int = 4
+    measurement_radius: int = 8
+    minimum_area: int = 1
+    small_star_max_area: int = 30
     nebula_min_area: int = 100
     nebula_max_area: int = 0
     nebula_contrast_threshold: float = 8.0
@@ -142,6 +150,22 @@ class Config:
                 contrast_threshold=data.get("star_detector", {})
                 .get("small_stars", {})
                 .get("contrast", 60),
+                local_background_radius=data.get("star_detector", {})
+                .get("local_background_radius", 12),
+                detection_sigma=data.get("star_detector", {})
+                .get("detection_sigma", 3),
+                minimum_contrast=data.get("star_detector", {})
+                .get("minimum_contrast", 12),
+                minimum_brightness=data.get("star_detector", {})
+                .get("minimum_brightness", 20),
+                minimum_distance=data.get("star_detector", {})
+                .get("minimum_distance", 4),
+                measurement_radius=data.get("star_detector", {})
+                .get("measurement_radius", 8),
+                minimum_area=data.get("star_detector", {})
+                .get("minimum_area", 1),
+                small_star_max_area=data.get("star_detector", {})
+                .get("small_star_max_area", 30),
                 nebula_min_area=data.get("star_detector", {})
                 .get("nebula", {})
                 .get("min_area", 100),
@@ -214,6 +238,14 @@ class Config:
                 "small_stars": {
                     "contrast": self.small_stars.contrast,
                 },
+                "local_background_radius": self.star_detector.local_background_radius,
+                "detection_sigma": self.star_detector.detection_sigma,
+                "minimum_contrast": self.star_detector.minimum_contrast,
+                "minimum_brightness": self.star_detector.minimum_brightness,
+                "minimum_distance": self.star_detector.minimum_distance,
+                "measurement_radius": self.star_detector.measurement_radius,
+                "minimum_area": self.star_detector.minimum_area,
+                "small_star_max_area": self.star_detector.small_star_max_area,
                 "nebula": {
                     "min_area": self.star_detector.nebula_min_area,
                     "max_area": self.star_detector.nebula_max_area,
@@ -266,6 +298,22 @@ class Config:
         # Validate contrast
         if self.small_stars.contrast < 0:
             errors.append(f"contrast cannot be negative")
+        if self.star_detector.local_background_radius <= 0:
+            errors.append("local_background_radius must be positive")
+        if self.star_detector.detection_sigma <= 0:
+            errors.append("detection_sigma must be positive")
+        if self.star_detector.minimum_contrast < 0:
+            errors.append("minimum_contrast cannot be negative")
+        if self.star_detector.minimum_brightness < 0:
+            errors.append("minimum_brightness cannot be negative")
+        if self.star_detector.minimum_distance < 1:
+            errors.append("minimum_distance must be positive")
+        if self.star_detector.measurement_radius < 1:
+            errors.append("measurement_radius must be positive")
+        if self.star_detector.minimum_area < 1:
+            errors.append("minimum_area must be positive")
+        if self.star_detector.small_star_max_area < 1:
+            errors.append("small_star_max_area must be positive")
         if self.star_detector.nebula_min_area < 1:
             errors.append("nebula min_area must be positive")
         if self.star_detector.nebula_max_area < 0:

@@ -1,18 +1,28 @@
+"""
+    Responsible for building the whole midi nebula:
+        - Sets the root note of each color from the nebula
+        - Builds the chord 
+        - Finds t
+"""
 from typing import List
 from models.nebula import NebulaMidi, Nebula
 from midi.midi_composer import MidiFactory
-from models.chords import Chord
+from models.chord import Chord
+from midi.chord_progression import ChordProgression
 
 
 class NebulasMidiFactory:
+
     def __init__(self, nebulas_midi: list[NebulaMidi], nebulas: list[Nebula]):
         self.nebulas: list[Nebula] = nebulas
         self.midi_factory = MidiFactory()
         self.nebulas_midi: list[NebulaMidi] = nebulas_midi
+        self.chord_progression = ChordProgression()
 
     def process(self):
         self.find_note_and_mode_for_nebulas()
         self.build_chords()
+        self.harmonic_path()
         
 
 
@@ -38,3 +48,7 @@ class NebulasMidiFactory:
                 nb.chords.append(chord.chord_maker())
 
                 print(f"Chord: {nb.chords[-1]}")
+
+    def harmonic_path(self):
+        for i in self.nebulas_midi:
+            i

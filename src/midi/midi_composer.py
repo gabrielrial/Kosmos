@@ -1,4 +1,5 @@
 from models.color import Color
+
 from models.chords import ChordType
 
 class MidiFactory:

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Iterable, Tuple
 
 from models.nebula import Nebula
-from models.chords import Chord
+from models.chord import Chord
 
 
 @dataclass

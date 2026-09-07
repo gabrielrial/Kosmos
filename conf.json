@@ -2,20 +2,29 @@
 	"star_detector": {
 		"white_threshold": {
 			"v": 0.7,
-			"s": 0.5
+			"s": 0.3
 		},
 		"ring_radius": 3,
 		"brightness_threshold": 70,
 		"small_stars": {
 			"contrast": 50
 		},
+		"local_background_radius": 12,
+		"detection_sigma": 90,
+		"minimum_contrast": 12,
+		"minimum_brightness": 20,
+		"minimum_distance": 4,
+		"measurement_radius": 8,
+		"minimum_area": 2,
+		"small_star_max_area": 30,
 		"nebula": {
-			"min_area": 100,
+			"min_area": 5000,
 			"max_area": 0,
-			"contrast_threshold": 8,
-			"saturation_threshold": 18,
-			"brightness_threshold": 20,
-			"blur_radius": 12
+			"contrast_threshold": 2,
+			"saturation_threshold": 1,
+			"brightness_threshold": 30
+			,
+			"blur_radius": 20
 		}
 	},
 	"tempo": {

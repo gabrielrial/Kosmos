@@ -3,26 +3,28 @@
 from collections import deque
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 from config.config import StarDetectorConfig
 from models.images import Images
-from models.nebula import Nebula, Nebulas
+from detection.cloud_utils import CloudUtils
+from models.color import Color
+from models.nebula import Nebula
 
 
 class NebulaDetector:
     """Finds large regions that differ from their local background."""
 
     def __init__(
-        self, images: Images, nebulas: Nebulas, config: StarDetectorConfig
+        self, images: Images, stars, config
     ) -> None:
         self.images = images
-        self.nebulas = nebulas
+        self.stars = stars
         self.config = config
 
-    def detect(self) -> None:
-        image = self.images.original_img
-        rgb = np.asarray(image, dtype=np.float32)
+    def detect(self) -> list[Nebula]:
+        #image = self._remove_stars()
+        rgb = np.asarray(self.images.original_img, dtype=np.float32)
         luminance = (
             0.2126 * rgb[:, :, 0]
             + 0.7152 * rgb[:, :, 1]
@@ -30,9 +32,12 @@ class NebulaDetector:
         )
         chroma = rgb.max(axis=2) - rgb.min(axis=2)
 
-        background_image = image.filter(
+        background_image = self.images.original_img.filter(
             ImageFilter.GaussianBlur(self.config.nebula_blur_radius)
         )
+        #background_image = self.images.original_img.filter(
+        #            ImageFilter.GaussianBlur(self.config.nebula_blur_radius)
+        #        )
         background = np.asarray(background_image, dtype=np.float32)
         background_luminance = (
             0.2126 * background[:, :, 0]
@@ -40,19 +45,47 @@ class NebulaDetector:
             + 0.0722 * background[:, :, 2]
         )
 
-        local_contrast = luminance - background_luminance
+        local_contrast = luminance
         mask = (
             (local_contrast >= self.config.nebula_contrast_threshold)
-            | (chroma >= self.config.nebula_saturation_threshold)
-        ) & (luminance >= self.config.nebula_brightness_threshold)
+            & (luminance >= self.config.nebula_brightness_threshold)
+        ) | (
+            (chroma >= self.config.nebula_saturation_threshold)
+            & (luminance >= self.config.nebula_brightness_threshold)
+            & (local_contrast >= self.config.nebula_contrast_threshold / 2)
+        )
 
-        self._collect_regions(mask, rgb, local_contrast)
+        regions, accepted_mask = self._collect_regions(mask, rgb, local_contrast)
+        self._save_previews(regions, accepted_mask)
+        return regions
+
+    def _remove_stars(self) -> Image.Image:
+        """Replace detected point sources with the blurred local background."""
+
+        result = self.images.original_img.copy()
+        blurred = self.images.blurred_img
+        width, height = result.size
+        for star in self.stars.small_stars + self.stars.big_stars:
+            radius = max(3, int(np.sqrt(max(star.area, 1)) * 2))
+            box = (
+                max(0, star.x - radius),
+                max(0, star.y - radius),
+                min(width, star.x + radius + 1),
+                min(height, star.y + radius + 1),
+            )
+            result.paste(blurred.crop(box), box[:2])
+        return result
 
     def _collect_regions(
         self, mask: np.ndarray, rgb: np.ndarray, local_contrast: np.ndarray
-    ) -> None:
+    ) -> tuple[list[Nebula], np.ndarray]:
         height, width = mask.shape
         visited = np.zeros_like(mask, dtype=bool)
+        regions: list[Nebula] = []
+        accepted_mask = np.zeros_like(mask, dtype=bool)
+        labels = np.zeros_like(mask, dtype=np.int32)
+        hsv = np.asarray(Image.fromarray(rgb.astype(np.uint8), "RGB").convert("HSV"))
+        label = 0
 
         for y, x in zip(*np.nonzero(mask)):
             if visited[y, x]:
@@ -79,8 +112,10 @@ class NebulaDetector:
                 and area > self.config.nebula_max_area
             ):
                 continue
-
             coordinates = np.asarray([(py, px) for px, py in points])
+            label += 1
+            labels[coordinates[:, 0], coordinates[:, 1]] = label
+            accepted_mask[coordinates[:, 0], coordinates[:, 1]] = True
             values = local_contrast[coordinates[:, 0], coordinates[:, 1]]
             weights = np.maximum(values, 1.0)
             center_y = float(
@@ -96,13 +131,49 @@ class NebulaDetector:
             min_x, min_y = coordinates[:, 1].min(), coordinates[:, 0].min()
             max_x, max_y = coordinates[:, 1].max(), coordinates[:, 0].max()
 
-            self.nebulas.regions.append(
-                Nebula(
-                    x=center_x,
-                    y=center_y,
-                    area=area,
-                    bbox=(int(min_x), int(min_y), int(max_x), int(max_y)),
-                    rgb_color=mean_color,
-                    contrast=float(values.mean()),
-                )
+            hsv_values = hsv[coordinates[:, 0], coordinates[:, 1]]
+            hue = float(np.mean(hsv_values[:, 0]) / 255)
+            saturation = float(np.mean(hsv_values[:, 1]) / 255)
+            brightness = float(np.mean(hsv_values[:, 2]) / 255)
+            nebula = Nebula(
+                x=int(round(center_x)),
+                y=int(round(center_y)),
+                width=int(max_x - min_x + 1),
+                height=int(max_y - min_y + 1),
+                area=area,
+                density=area / max(1, (max_x - min_x + 1) * (max_y - min_y + 1)),
+                brightness=brightness,
+                hue=hue,
+                saturation=saturation,
+                dominant_colors=[
+                    Color(
+                        hue=hue,
+                        saturation=saturation,
+                        brightness=brightness,
+                        weight=1.0,
+                    )
+                ],
             )
+            nebula.filter_curve = CloudUtils._get_filter_curve(labels == label, nebula)
+            regions.append(nebula)
+
+        return regions, accepted_mask
+
+    def _save_previews(self, regions: list[Nebula], mask: np.ndarray) -> None:
+        """Save the detected nebula regions for visual verification."""
+
+        mask_image = Image.fromarray((mask.astype(np.uint8) * 255), mode="L")
+        mask_image.save("nebulas.png")
+
+        preview = self.images.original_img.convert("RGB").copy()
+        draw = ImageDraw.Draw(preview)
+        for index, nebula in enumerate(regions, start=1):
+            left = nebula.x - nebula.width // 2
+            top = nebula.y - nebula.height // 2
+            right = left + nebula.width
+            bottom = top + nebula.height
+            draw.rectangle((left, top, right, bottom), outline=(255, 0, 0), width=2)
+            draw.text((left, max(0, top - 14)), f"Nebula {index}", fill=(255, 0, 0))
+
+        preview.save("nebula_debug.png")
+        print("[OK] Nebula previews saved: nebulas.png, nebula_debug.png")

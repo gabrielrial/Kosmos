@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List
 
-from models.chords import Chord
+from models.chord import Chord
 from models.color import Color
 
 
