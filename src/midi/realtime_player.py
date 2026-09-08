@@ -9,6 +9,7 @@ from typing import Iterable
 import mido
 
 from music.orchestrator import MappedStarNote, TimelineItem
+from models.nebula import NebulaMidi
 
 
 class RealtimeMidiPlayer(Thread):
@@ -121,6 +122,44 @@ class NebulaRealtimeMidiPlayer(RealtimeMidiPlayer):
                 max(0.0, (self.loop_beats * self.beat_seconds) - (time.monotonic() - start_time))
             ):
                 return
+
+
+class NebulaChordRealtimeMidiPlayer(RealtimeMidiPlayer):
+    """Sends generated nebula chords to the dedicated MIDI output."""
+
+    def __init__(
+        self,
+        nebulas: Iterable[NebulaMidi],
+        outport,
+        bpm: float,
+    ):
+        super().__init__(outport, bpm)
+        self.nebulas = list(nebulas)
+
+    def run(self) -> None:
+        if not self.nebulas:
+            return
+        while not self.stop_event.is_set():
+            for nebula in self.nebulas:
+                for chord, duration in zip(nebula.chords, nebula.duration):
+                    if self.stop_event.is_set():
+                        return
+                    notes = chord.chord_maker()
+                    for note in notes:
+                        self.outport.send(
+                            mido.Message("note_on", channel=0, note=note, velocity=72)
+                        )
+
+                    if self.stop_event.wait(max(0.0, duration * self.beat_seconds)):
+                        self._send_note_off(notes)
+                        return
+                    self._send_note_off(notes)
+
+    def _send_note_off(self, notes: Iterable[int]) -> None:
+        for note in notes:
+            self.outport.send(
+                mido.Message("note_off", channel=0, note=note, velocity=0)
+            )
 
 
 class MidiOutputMode:

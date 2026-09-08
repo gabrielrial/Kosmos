@@ -27,7 +27,11 @@ from models.nebula import Nebulas
 from midi.clock import MidiClockGenerator
 from midi.star_player import StarMidiPlayer
 from midi.midi_creator import MidiSheet
-from midi.realtime_player import NebulaRealtimeMidiPlayer, StarRealtimeMidiPlayer
+from midi.realtime_player import (
+    NebulaChordRealtimeMidiPlayer,
+    NebulaRealtimeMidiPlayer,
+    StarRealtimeMidiPlayer,
+)
 from midi.midi_nebulas import NebulasMidiFactory
 from models.nebula import NebulaMidi
 
@@ -98,6 +102,20 @@ class ImageToMidi:
             f"[Harmony] Built {sum(len(nebula.chords) for nebula in neb_midi)} chords "
             f"across {len(neb_midi)} nebulas"
         )
+        nebulas_player = NebulaChordRealtimeMidiPlayer(
+            neb_midi,
+            self.midi.midi_devices.get_port("kosmos_nebula"),
+            self.config.tempo.bpm,
+        )
+        self.realtime_players = (nebulas_player,)
+        print("[MIDI] Sending nebula chords to kosmos_nebula")
+        nebulas_player.start()
+        try:
+            nebulas_player.join()
+        except KeyboardInterrupt:
+            print("[MIDI] Stopping nebula playback")
+            nebulas_player.stop()
+            nebulas_player.join()
 
 
 
