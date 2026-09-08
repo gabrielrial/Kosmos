@@ -4,29 +4,163 @@
         - Builds the chord 
         - Finds t
 """
-from typing import List
+import random
+from pathlib import Path
+
 from models.nebula import NebulaMidi, Nebula
 from midi.midi_composer import MidiFactory
 from models.chord import Chord
+from models.chords import ChordType
 from midi.chord_progression import ChordProgression
 
 
 class NebulasMidiFactory:
 
-    def __init__(self, nebulas_midi: list[NebulaMidi], nebulas: list[Nebula]):
+    def __init__(
+        self,
+        nebulas_midi: list[NebulaMidi],
+        nebulas: list[Nebula],
+        total_duration_beats: float = 64.0,
+        transition_duration_beats: float = 4.0,
+    ):
         self.nebulas: list[Nebula] = nebulas
         self.midi_factory = MidiFactory()
         self.nebulas_midi: list[NebulaMidi] = nebulas_midi
         self.chord_progression = ChordProgression()
+        self.total_duration_beats = total_duration_beats
+        self.transition_duration_beats = transition_duration_beats
 
     def process(self):
-        self.find_note_and_mode_for_nebulas()
-        self.build_chords()
-        self.harmonic_path()
-        
+        report: list[str] = []
+        for nebula in self.nebulas:
+            midi_nebula, original_chords, original_durations = self._build_nebula(nebula)
+            self.nebulas_midi.append(midi_nebula)
+            report.append(
+                self._format_report(
+                    nebula, original_chords, original_durations, midi_nebula
+                )
+            )
+        self._write_report(report)
+        return self.nebulas_midi
 
+    def _build_nebula(
+        self, nebula: Nebula
+    ) -> tuple[NebulaMidi, list[Chord], list[float]]:
+        colors = list(nebula.dominant_colors[:5])
+        seed = f"{nebula.x}:{nebula.y}:{nebula.area}"
+        random.Random(seed).shuffle(colors)
+        midi_nebula = NebulaMidi()
+        for color in colors:
+            note = self.midi_factory.color_to_note(color)
+            mode = self.midi_factory.brightness_to_mode(color)
+            chord = Chord(root=note, chord_type=mode)
+            midi_nebula.notes.append(note)
+            midi_nebula.mode.append(mode)
+            midi_nebula.chords.append(chord)
+        midi_nebula.duration = self._durations(colors)
+        original_chords = list(midi_nebula.chords)
+        original_durations = list(midi_nebula.duration)
+        self._apply_progression(midi_nebula)
+        return midi_nebula, original_chords, original_durations
+
+    def _durations(self, colors) -> list[float]:
+        total_weight = sum(max(color.weight, 0.0) for color in colors) or 1.0
+        return [
+            self.total_duration_beats * max(color.weight, 0.0) / total_weight
+            for color in colors
+        ]
+
+    def _format_report(
+        self,
+        nebula: Nebula,
+        original_chords: list[Chord],
+        original_durations: list[float],
+        midi_nebula: NebulaMidi,
+    ) -> str:
+        lines = [
+            f"Nebula at ({nebula.x}, {nebula.y})",
+            f"Original nebula chords ({len(original_chords)}):",
+        ]
+        for index, (chord, duration) in enumerate(
+            zip(original_chords, original_durations), start=1
+        ):
+            lines.append(
+                f"  {index}. {self._format_chord(chord)} | "
+                f"duration={duration:.2f} beats"
+            )
+
+        lines.append("Progression with passing chords:")
+        for index, (chord, duration) in enumerate(
+            zip(midi_nebula.chords, midi_nebula.duration), start=1
+        ):
+            kind = (
+                "nebula"
+                if any(chord is original for original in original_chords)
+                else "passing"
+            )
+            lines.append(
+                f"  {index}. [{kind}] {self._format_chord(chord)} | "
+                f"duration={duration:.2f} beats"
+            )
+        lines.append(f"  Total duration: {sum(midi_nebula.duration):.2f} beats")
+        return "\n".join(lines)
+
+    def _format_chord(self, chord: Chord) -> str:
+        root = getattr(chord, "root", None)
+        chord_type = getattr(chord, "chord_type", None)
+        root_name = (
+            self.midi_factory.note_to_name(root)
+            if isinstance(root, int)
+            else "unknown"
+        )
+        type_name = getattr(chord_type, "name", str(chord_type))
+        try:
+            notes = chord.chord_maker()
+        except AttributeError:
+            notes = getattr(chord, "notes", ())
+        return f"{root_name} {type_name} notes={list(notes)}"
+
+    def _write_report(self, reports: list[str]) -> None:
+        Path("nebula_chords.txt").write_text(
+            "KOSMOS - Nebula chord report\n\n"
+            + "\n\n".join(reports)
+            + ("\n" if reports else "No nebulas detected.\n"),
+            encoding="utf-8",
+        )
+        print("[OK] Chord report saved: nebula_chords.txt")
+
+    def _apply_progression(self, nebula: NebulaMidi) -> None:
+        if not nebula.chords:
+            return
+        output_chords = [nebula.chords[0]]
+        output_durations = [nebula.duration[0]]
+        for index in range(1, len(nebula.chords)):
+            source = output_chords[-1]
+            destination = nebula.chords[index]
+            path = self.chord_progression.chord_connection(source, destination)
+            path = path if isinstance(path, list) else [destination]
+            intermediates = path[1:-1]
+            available = output_durations[-1]
+            transition_total = min(
+                available, self.transition_duration_beats * len(intermediates)
+            )
+            output_durations[-1] = available - transition_total
+            for intermediate in intermediates:
+                output_chords.append(intermediate)
+                output_durations.append(
+                    transition_total / len(intermediates)
+                    if intermediates
+                    else 0.0
+                )
+            output_chords.append(destination)
+            output_durations.append(nebula.duration[index])
+        nebula.chords = output_chords
+        nebula.duration = output_durations
+        nebula.notes = [chord.root for chord in output_chords]
+        nebula.mode = [chord.chord_type for chord in output_chords]
 
     def find_note_and_mode_for_nebulas(self):
+        """Compatibility helper for callers using the former staged API."""
         for nb in self.nebulas:
             nebula = NebulaMidi()
             for i in nb.dominant_colors:
@@ -39,16 +173,10 @@ class NebulasMidiFactory:
     def build_chords(self):
         for nb in self.nebulas_midi:
             for note, mode in zip(nb.notes, nb.mode):
-                chord = Chord(
-                    chord_type=mode,
-                    inversion=0,
-                    root=note
-                )
-
-                nb.chords.append(chord.chord_maker())
+                nb.chords.append(Chord(chord_type=mode, root=note))
 
                 print(f"Chord: {nb.chords[-1]}")
 
     def harmonic_path(self):
-        for i in self.nebulas_midi:
-            i
+        for nebula in self.nebulas_midi:
+            self._apply_progression(nebula)

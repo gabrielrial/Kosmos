@@ -88,8 +88,16 @@ class ImageToMidi:
         nebulas = NebulaDetector(
             self.images, self.stars, self.config.star_detector
         ).detect()
-        #quantizer = Quantizer(self.stars, self.midi.tempo, self.images.width)
-        #neb_midi = NebulasMidiFactory(self.nebulosas, nebulas).process()
+        quantizer = Quantizer(self.stars, self.midi.tempo, self.images.width)
+        neb_midi = NebulasMidiFactory(
+            self.nebulosas,
+            nebulas,
+            total_duration_beats=self.config.harmony.nebula_total_duration_beats,
+        ).process()
+        print(
+            f"[Harmony] Built {sum(len(nebula.chords) for nebula in neb_midi)} chords "
+            f"across {len(neb_midi)} nebulas"
+        )
 
 
 

@@ -124,10 +124,6 @@ class NebulaDetector:
             center_x = float(
                 np.average(coordinates[:, 1], weights=weights)
             )
-            mean_color = tuple(
-                int(round(value))
-                for value in rgb[coordinates[:, 0], coordinates[:, 1]].mean(axis=0)
-            )
             min_x, min_y = coordinates[:, 1].min(), coordinates[:, 0].min()
             max_x, max_y = coordinates[:, 1].max(), coordinates[:, 0].max()
 
@@ -135,6 +131,8 @@ class NebulaDetector:
             hue = float(np.mean(hsv_values[:, 0]) / 255)
             saturation = float(np.mean(hsv_values[:, 1]) / 255)
             brightness = float(np.mean(hsv_values[:, 2]) / 255)
+            rgb_values = rgb[coordinates[:, 0], coordinates[:, 1]]
+            dominant_colors = self._dominant_colors(rgb_values)
             nebula = Nebula(
                 x=int(round(center_x)),
                 y=int(round(center_y)),
@@ -145,19 +143,42 @@ class NebulaDetector:
                 brightness=brightness,
                 hue=hue,
                 saturation=saturation,
-                dominant_colors=[
-                    Color(
-                        hue=hue,
-                        saturation=saturation,
-                        brightness=brightness,
-                        weight=1.0,
-                    )
-                ],
+                dominant_colors=dominant_colors,
             )
             nebula.filter_curve = CloudUtils._get_filter_curve(labels == label, nebula)
             regions.append(nebula)
 
         return regions, accepted_mask
+
+    @staticmethod
+    def _dominant_colors(rgb_values: np.ndarray, limit: int = 5) -> list[Color]:
+        """Reduce a nebula to up to five weighted representative colors."""
+
+        if len(rgb_values) == 0:
+            return []
+        pixels = Image.fromarray(
+            rgb_values.astype(np.uint8).reshape(1, len(rgb_values), 3), mode="RGB"
+        )
+        quantized = pixels.quantize(colors=limit, method=Image.Quantize.MEDIANCUT)
+        palette = quantized.getpalette()
+        counts = quantized.getcolors() or []
+        total = sum(count for count, _ in counts) or 1
+        colors: list[Color] = []
+        for count, index in counts:
+            r, g, b = palette[index * 3 : index * 3 + 3]
+            color_hsv = np.asarray(
+                Image.new("RGB", (1, 1), (r, g, b)).convert("HSV")
+            )[0, 0]
+            hue, saturation, brightness = (float(channel) for channel in color_hsv)
+            colors.append(
+                Color(
+                    hue=hue * 360 / 255,
+                    saturation=saturation * 100 / 255,
+                    brightness=brightness * 100 / 255,
+                    weight=count / total,
+                )
+            )
+        return colors
 
     def _save_previews(self, regions: list[Nebula], mask: np.ndarray) -> None:
         """Save the detected nebula regions for visual verification."""

@@ -14,16 +14,21 @@ class Chord:
     order. A chord may be created directly from notes or from detected stars.
     """
 
-    notes: tuple[int, ...]
+    notes: tuple[int, ...] = ()
+    root: int | None = None
+    chord_type: object | None = None
+    inversion: int = 0
     duration: float = 0.0
     velocity: int = 100
     channel: int = 0
     pan: int = 64
 
     def __post_init__(self) -> None:
+        if self.root is not None and not 0 <= self.root <= 127:
+            raise ValueError("Chord root must be between 0 and 127")
         notes = tuple(sorted(set(self.notes)))
-        if not notes:
-            raise ValueError("A chord must contain at least one note")
+        if not notes and self.root is None:
+            raise ValueError("A chord must contain notes or a root")
         if any(not isinstance(note, int) or not 0 <= note <= 127 for note in notes):
             raise ValueError("Chord notes must be MIDI integers between 0 and 127")
         if self.duration < 0:
@@ -35,6 +40,10 @@ class Chord:
         if not 0 <= self.pan <= 127:
             raise ValueError("Chord pan must be between 0 and 127")
 
+        if self.root is None:
+            object.__setattr__(self, "root", notes[0])
+        else:
+            object.__setattr__(self, "root", int(self.root))
         object.__setattr__(self, "notes", notes)
 
     @classmethod
@@ -63,22 +72,30 @@ class Chord:
             pan=average_pan if pan is None else pan,
         )
 
-    @property
-    def root(self) -> int:
-        """Return the lowest note in the chord."""
-
-        return self.notes[0]
-
     def contains(self, note: int) -> bool:
         """Return whether the chord contains a MIDI note."""
 
         return note in self.notes
 
+    def chord_maker(self) -> list[int]:
+        """Build chord tones from the configured chord type."""
+
+        if self.notes:
+            return list(self.notes)
+        intervals = getattr(self.chord_type, "value", (0, 4, 7))
+        notes = tuple(self.root + interval for interval in intervals)
+        if any(note > 127 for note in notes):
+            raise ValueError("Chord tones exceed MIDI note range")
+        return list(notes)
+
     def transposed(self, semitones: int) -> "Chord":
         """Return a copy transposed by the requested number of semitones."""
 
         return Chord(
-            notes=tuple(note + semitones for note in self.notes),
+            notes=tuple(note + semitones for note in self.chord_maker()),
+            root=self.root + semitones,
+            chord_type=self.chord_type,
+            inversion=self.inversion,
             duration=self.duration,
             velocity=self.velocity,
             channel=self.channel,
