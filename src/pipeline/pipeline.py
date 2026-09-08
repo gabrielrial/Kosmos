@@ -102,20 +102,30 @@ class ImageToMidi:
             f"[Harmony] Built {sum(len(nebula.chords) for nebula in neb_midi)} chords "
             f"across {len(neb_midi)} nebulas"
         )
+        self._fit_stars_to_harmony(neb_midi)
+        self._setup_midi()
         nebulas_player = NebulaChordRealtimeMidiPlayer(
             neb_midi,
             self.midi.midi_devices.get_port("kosmos_nebula"),
             self.config.tempo.bpm,
         )
-        self.realtime_players = (nebulas_player,)
-        print("[MIDI] Sending nebula chords to kosmos_nebula")
-        nebulas_player.start()
+        self.realtime_players = (
+            self.small_star_player,
+            self.big_star_player,
+            nebulas_player,
+        )
+        print("[MIDI] Starting stars and nebulas simultaneously")
+        for player in self.realtime_players:
+            player.start()
         try:
-            nebulas_player.join()
+            for player in self.realtime_players:
+                player.join()
         except KeyboardInterrupt:
-            print("[MIDI] Stopping nebula playback")
-            nebulas_player.stop()
-            nebulas_player.join()
+            print("[MIDI] Stopping stars and nebulas")
+            for player in self.realtime_players:
+                player.stop()
+            for player in self.realtime_players:
+                player.join()
 
 
 
@@ -181,20 +191,31 @@ class ImageToMidi:
 
 
     def _setup_midi(self):
+        stars_port = self.midi.midi_devices.get_port("kosmos_stars")
+        if stars_port is None:
+            raise RuntimeError("MIDI port 'kosmos_stars' is not available")
+        print("[MIDI] Stars output: kosmos_stars")
+
         self.small_star_player = StarMidiPlayer(
             stars=self.stars.small_stars,
-            outport=self.midi.outport["kosmos_stars"],
+            outport=stars_port,
             channel_base=3,
             speed_beats=self.config.instrument.stars_speed_beats,
+            distance_scale=self.config.instrument.stars_distance_scale,
+            min_duration_beats=self.config.instrument.stars_min_duration_beats,
+            max_duration_beats=self.config.instrument.stars_max_duration_beats,
             tempo=self.midi.tempo,
             shuffle=True,
         )
 
         self.big_star_player = StarMidiPlayer(
             stars=self.stars.big_stars,
-            outport=self.midi.outport["kosmos_stars"],
+            outport=stars_port,
             channel_base=5,
             speed_beats=self.config.instrument.stars_speed_beats,
+            distance_scale=self.config.instrument.stars_distance_scale,
+            min_duration_beats=self.config.instrument.stars_min_duration_beats,
+            max_duration_beats=self.config.instrument.stars_max_duration_beats,
             tempo=self.midi.tempo,
             shuffle=True,
         )
@@ -203,3 +224,27 @@ class ImageToMidi:
 
         self.small_star_player.start()
         self.big_star_player.start()
+
+    def _fit_stars_to_harmony(self, nebulas: list[NebulaMidi]) -> None:
+        allowed_pitch_classes = {
+            note % 12
+            for nebula in nebulas
+            for chord in nebula.chords
+            for note in chord.chord_maker()
+        }
+        if not allowed_pitch_classes:
+            return
+
+        for star in self.stars.small_stars + self.stars.big_stars:
+            original_note = star.note
+            allowed_notes = [
+                note for note in range(128) if note % 12 in allowed_pitch_classes
+            ]
+            star.note = min(
+                allowed_notes,
+                key=lambda note: (abs(note - original_note), note),
+            )
+        print(
+            "[Harmony] Star pitch classes: "
+            + ", ".join(str(pitch) for pitch in sorted(allowed_pitch_classes))
+        )

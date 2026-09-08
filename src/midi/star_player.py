@@ -4,8 +4,8 @@ Player for playing detected stars as MIDI notes.
 
 import time
 import random
-import mido, math
-from typing import List, Optional
+import math
+import mido
 from models.star import Star, Stars
 from threading import Thread
 
@@ -33,9 +33,12 @@ class StarMidiPlayer(Thread):
         stars: Stars,
         outport,
         channel_base: int = 3,
-        speed_beats: float = 800000,
+        speed_beats: float = 0.5,
         tempo=None,
         shuffle: bool = True,
+        distance_scale: float = 0.005,
+        min_duration_beats: float = 0.25,
+        max_duration_beats: float = 2.0,
     ):
         """
         Initializes the star player.
@@ -48,13 +51,17 @@ class StarMidiPlayer(Thread):
             tempo: Tempo object for synchronization (optional)
             shuffle: If True, plays stars in random order
         """
-        self.stars = stars
+        self.stars = list(stars)
         self.speed_beats = speed_beats
         self.tempo = tempo
         self.shuffle = shuffle
+        self.distance_scale = distance_scale
+        self.min_duration_beats = min_duration_beats
+        self.max_duration_beats = max_duration_beats
         self.channel_base = channel_base
         self.outport = outport
         super().__init__()
+        self._prepare_sequence()
 
         # Calcular velocidad en segundos si hay tempo
 
@@ -63,8 +70,6 @@ class StarMidiPlayer(Thread):
         Plays all stars as a MIDI sequence.
         Runs in a separate thread.
         """
-        # Shuffle if enabled
-
         for star in self.stars:
             # if not self.running:
             #    break
@@ -78,9 +83,30 @@ class StarMidiPlayer(Thread):
 
             # Enviar nota
             self._send_note_on(star, self.channel_base, cc)
-            time.sleep(star.duration)
+            duration_seconds = star.duration * (
+                self.tempo.beat_duration if self.tempo else 1.0
+            )
+            time.sleep(duration_seconds)
             self._send_note_off(star, self.channel_base)
-            time.sleep(star.duration * 4)
+
+    def _prepare_sequence(self) -> None:
+        if self.shuffle:
+            random.shuffle(self.stars)
+        if not self.stars:
+            return
+        for index, star in enumerate(self.stars):
+            next_star = self.stars[(index + 1) % len(self.stars)]
+            distance = math.hypot(
+                next_star.x - star.x,
+                next_star.y - star.y,
+            )
+            star.duration = max(
+                self.min_duration_beats,
+                min(
+                    self.max_duration_beats,
+                    distance * self.distance_scale,
+                ),
+            )
 
     def _get_chain_index(self, pan: float) -> int:
         pan = max(0, min(int(pan), 127))

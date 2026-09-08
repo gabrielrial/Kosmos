@@ -61,6 +61,9 @@ class InstrumentConfig:
     bass_speed_beats: float = 0.4
     bass_max_note_duration_beats: float = 4.0
     stars_speed_beats: float = 80
+    stars_distance_scale: float = 0.005
+    stars_min_duration_beats: float = 0.25
+    stars_max_duration_beats: float = 2.0
 
 @dataclass
 class InstrumentNames:
@@ -204,6 +207,15 @@ class Config:
                 stars_speed_beats=data.get("instrument", {}).get(
                     "stars_speed_beats", 0.5
                 ),
+                stars_distance_scale=data.get("instrument", {}).get(
+                    "stars_distance_scale", 0.005
+                ),
+                stars_min_duration_beats=data.get("instrument", {}).get(
+                    "stars_min_duration_beats", 0.25
+                ),
+                stars_max_duration_beats=data.get("instrument", {}).get(
+                    "stars_max_duration_beats", 2.0
+                ),
             ),
             images = ImageConfig(
                 saturation_boost=data.get("images", {}).get("saturation_boost", 2),
@@ -268,6 +280,9 @@ class Config:
                 "bass_speed_beats": self.instrument.bass_speed_beats,
                 "bass_max_note_duration_beats": self.instrument.bass_max_note_duration_beats,
                 "stars_speed_beats": self.instrument.stars_speed_beats,
+                "stars_distance_scale": self.instrument.stars_distance_scale,
+                "stars_min_duration_beats": self.instrument.stars_min_duration_beats,
+                "stars_max_duration_beats": self.instrument.stars_max_duration_beats,
             },
             "harmony": {
                 "nebula_total_duration_beats": self.harmony.nebula_total_duration_beats,
@@ -342,6 +357,12 @@ class Config:
             errors.append(f"bass_max_note_duration_beats must be positive")
         if self.instrument.stars_speed_beats <= 0:
             errors.append(f"stars_speed_beats must be positive")
+        if self.instrument.stars_distance_scale <= 0:
+            errors.append("stars_distance_scale must be positive")
+        if self.instrument.stars_min_duration_beats <= 0:
+            errors.append("stars_min_duration_beats must be positive")
+        if self.instrument.stars_max_duration_beats < self.instrument.stars_min_duration_beats:
+            errors.append("stars_max_duration_beats must be >= stars_min_duration_beats")
 
         if self.harmony.nebula_total_duration_beats <= 0:
             errors.append(f"nebula_total_duration_beats must be positive")

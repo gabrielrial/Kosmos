@@ -10,7 +10,7 @@
 			"contrast": 50
 		},
 		"local_background_radius": 12,
-		"detection_sigma": 90,
+		"detection_sigma": 8,
 		"minimum_contrast": 12,
 		"minimum_brightness": 20,
 		"minimum_distance": 4,
@@ -34,7 +34,10 @@
 	"instrument": {
 		"bass": 1,
 		"bass_max_note_duration_beats": 4.0,
-		"stars_speed_beats": 0.5
+		"stars_speed_beats": 0.5,
+		"stars_distance_scale": 0.005,
+		"stars_min_duration_beats": 0.25,
+		"stars_max_duration_beats": 2.0
 	},
 	"images": {
 		"saturation_boost" : 50,
