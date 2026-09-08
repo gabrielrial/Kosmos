@@ -12,6 +12,12 @@ from music.orchestrator import MappedStarNote, TimelineItem
 from models.nebula import NebulaMidi
 
 
+def _log_chord(chord) -> None:
+    names = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+    mode = getattr(chord.chord_type, "name", str(chord.chord_type))
+    print(f"[MIDI] nebulas chord: {names[chord.root % 12]} {mode}")
+
+
 class RealtimeMidiPlayer(Thread):
     """Base thread for sending one musical part to one MIDI port."""
 
@@ -102,6 +108,7 @@ class NebulaRealtimeMidiPlayer(RealtimeMidiPlayer):
                     return
                 self._wait_until(start_time, item.start_beat)
                 notes = item.chord.chord_maker()
+                _log_chord(item.chord)
                 for note in notes:
                     self.outport.send(
                         mido.Message("note_on", channel=0, note=note, velocity=72)
@@ -145,6 +152,7 @@ class NebulaChordRealtimeMidiPlayer(RealtimeMidiPlayer):
                     if self.stop_event.is_set():
                         return
                     notes = chord.chord_maker()
+                    _log_chord(chord)
                     for note in notes:
                         self.outport.send(
                             mido.Message("note_on", channel=0, note=note, velocity=72)

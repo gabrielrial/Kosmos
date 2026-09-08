@@ -1,3 +1,4 @@
+from collections import deque
 from typing import Sequence, Optional, List
 
 from models.chord import Chord
@@ -19,10 +20,10 @@ class ChordProgression:
         Otherwise, searches for a passing chord.
         """
 
-        connection = self.possible_connections(
-            src.root,
-            dest.root,
-        )
+        if src.root % 12 == dest.root % 12:
+            return dest
+
+        connection = self.possible_connections(src.root, dest.root)
 
         if self.valid_chord_connection(connection, src, dest):
             print(f"Chords: {src} and {dest} are valid")
@@ -36,32 +37,37 @@ class ChordProgression:
         Determines the type of connection between two root notes.
 
         Returns:
-            0: same note
-            1: +3 semitones
-            2: -3 semitones
-            3: ±4 semitones
-            4: ±6 semitones
-            5: +1 semitone
-            6: -1 semitone
+            1: same note
+            2: +3 semitones
+            3: -3 semitones
+            4: ±4 semitones
+            5: ±6 semitones
+            6: +1 semitone
+            7: -1 semitone
         """
 
-        if (src + 3) % 12 == dest:
-            return 1
+        src %= 12
+        dest %= 12
 
-        if (src - 3) % 12 == dest:
+        if src == dest:
+            return 1
+        if (src + 3) % 12 == dest:
             return 2
 
-        if (src + 4) % 12 == dest or (src - 4) % 12 == dest:
+        if (src - 3) % 12 == dest:
             return 3
 
-        if (src + 6) % 12 == dest or (src - 6) % 12 == dest:
+        if (src + 4) % 12 == dest or (src - 4) % 12 == dest:
             return 4
 
-        if (src + 1) % 12 == dest:
+        if (src + 6) % 12 == dest or (src - 6) % 12 == dest:
             return 5
 
-        if (src - 1) % 12 == dest:
+        if (src + 1) % 12 == dest:
             return 6
+
+        if (src - 1) % 12 == dest:
+            return 7
 
         return 0
 
@@ -77,6 +83,9 @@ class ChordProgression:
         """
 
         if connection == 1:
+                return True
+
+        if connection == 2:
             # +3 semitones
             if src.chord_type == ChordType.MAJOR:
                 return True
@@ -84,7 +93,7 @@ class ChordProgression:
             if src.chord_type == ChordType.MINOR:
                 return dest.chord_type == ChordType.MINOR
 
-        elif connection == 2:
+        elif connection == 3:
             # -3 semitones
             if src.chord_type == ChordType.MINOR:
                 return True
@@ -92,22 +101,22 @@ class ChordProgression:
             if src.chord_type == ChordType.MAJOR:
                 return dest.chord_type == ChordType.MAJOR
 
-        elif connection == 3:
+        elif connection == 4:
             # ±4 semitones
             return (
                 src.chord_type == ChordType.MAJOR and dest.chord_type == ChordType.MAJOR
             )
 
-        elif connection == 4:
+        elif connection == 5:
             return True
 
-        elif connection == 5:
+        elif connection == 6:
             # +1 semitone
             return (
                 src.chord_type == ChordType.MAJOR and dest.chord_type == ChordType.MINOR
             )
 
-        elif connection == 6:
+        elif connection == 7:
             # -1 semitone
             return (
                 src.chord_type == ChordType.MAJOR and dest.chord_type == ChordType.MAJOR
@@ -123,34 +132,31 @@ class ChordProgression:
         max_depth: int = 6,
     ) -> Optional[List[Chord]]:
 
-        if path is None:
-            path = [src]
+        initial_path = path if path is not None else [src]
+        queue = deque([(src, initial_path)])
+        visited = {
+            (chord.root % 12, chord.chord_type)
+            for chord in initial_path
+        }
 
-        # Evitar caminos infinitos
-        if len(path) > max_depth:
-            return None
+        while queue:
+            current, current_path = queue.popleft()
+            if len(current_path) >= max_depth:
+                continue
 
-        # Conexión directa
-        connection = self.possible_connections(
-            src.root,
-            dest.root,
-        )
+            if current.root % 12 == dest.root % 12:
+                return current_path + [dest]
 
-        if self.valid_chord_connection(connection, src, dest):
-            return path + [dest]
+            connection = self.possible_connections(current.root, dest.root)
+            if self.valid_chord_connection(connection, current, dest):
+                return current_path + [dest]
 
-        # Explorar candidatos
-        for next_chord in self.possible_intermediate_chords(src, dest):
-
-            result = self.find_chord_path(
-                next_chord,
-                dest,
-                path + [next_chord],
-                max_depth,
-            )
-
-            if result is not None:
-                return result
+            for candidate in self.possible_intermediate_chords(current, dest):
+                state = (candidate.root % 12, candidate.chord_type)
+                if state in visited:
+                    continue
+                visited.add(state)
+                queue.append((candidate, current_path + [candidate]))
 
         return None
 
@@ -164,7 +170,7 @@ class ChordProgression:
 
         for root in range(12):
 
-            if root == src.root:
+            if root % 12 == src.root % 12:
                 continue
 
             connection = self.possible_connections(
