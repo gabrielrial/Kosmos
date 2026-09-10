@@ -199,7 +199,7 @@ class ImageToMidi:
         self.small_star_player = StarMidiPlayer(
             stars=self.stars.small_stars,
             outport=stars_port,
-            channel_base=3,
+            channel_base=self.config.instrument.stars_small_midi_channel,
             speed_beats=self.config.instrument.stars_speed_beats,
             distance_scale=self.config.instrument.stars_distance_scale,
             min_duration_beats=self.config.instrument.stars_min_duration_beats,
@@ -211,7 +211,7 @@ class ImageToMidi:
         self.big_star_player = StarMidiPlayer(
             stars=self.stars.big_stars,
             outport=stars_port,
-            channel_base=5,
+            channel_base=self.config.instrument.stars_big_midi_channel,
             speed_beats=self.config.instrument.stars_speed_beats,
             distance_scale=self.config.instrument.stars_distance_scale,
             min_duration_beats=self.config.instrument.stars_min_duration_beats,

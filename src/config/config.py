@@ -64,6 +64,8 @@ class InstrumentConfig:
     stars_distance_scale: float = 0.005
     stars_min_duration_beats: float = 0.25
     stars_max_duration_beats: float = 2.0
+    stars_small_midi_channel: int = 3
+    stars_big_midi_channel: int = 5
 
 @dataclass
 class InstrumentNames:
@@ -216,6 +218,12 @@ class Config:
                 stars_max_duration_beats=data.get("instrument", {}).get(
                     "stars_max_duration_beats", 2.0
                 ),
+                stars_small_midi_channel=data.get("instrument", {}).get(
+                    "stars_small_midi_channel", 3
+                ),
+                stars_big_midi_channel=data.get("instrument", {}).get(
+                    "stars_big_midi_channel", 5
+                ),
             ),
             images = ImageConfig(
                 saturation_boost=data.get("images", {}).get("saturation_boost", 2),
@@ -283,6 +291,8 @@ class Config:
                 "stars_distance_scale": self.instrument.stars_distance_scale,
                 "stars_min_duration_beats": self.instrument.stars_min_duration_beats,
                 "stars_max_duration_beats": self.instrument.stars_max_duration_beats,
+                "stars_small_midi_channel": self.instrument.stars_small_midi_channel,
+                "stars_big_midi_channel": self.instrument.stars_big_midi_channel,
             },
             "harmony": {
                 "nebula_total_duration_beats": self.harmony.nebula_total_duration_beats,
@@ -363,6 +373,14 @@ class Config:
             errors.append("stars_min_duration_beats must be positive")
         if self.instrument.stars_max_duration_beats < self.instrument.stars_min_duration_beats:
             errors.append("stars_max_duration_beats must be >= stars_min_duration_beats")
+        for name, channel in (
+            ("stars_small_midi_channel", self.instrument.stars_small_midi_channel),
+            ("stars_big_midi_channel", self.instrument.stars_big_midi_channel),
+        ):
+            if not 0 <= channel <= 15:
+                errors.append(f"{name} must be between 0 and 15")
+        if self.instrument.stars_small_midi_channel == self.instrument.stars_big_midi_channel:
+            errors.append("star MIDI channels must be different")
 
         if self.harmony.nebula_total_duration_beats <= 0:
             errors.append(f"nebula_total_duration_beats must be positive")

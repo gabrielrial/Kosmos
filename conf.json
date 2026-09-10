@@ -37,7 +37,9 @@
 		"stars_speed_beats": 0.5,
 		"stars_distance_scale": 0.005,
 		"stars_min_duration_beats": 0.25,
-		"stars_max_duration_beats": 2.0
+		"stars_max_duration_beats": 2.0,
+		"stars_small_midi_channel": 3,
+		"stars_big_midi_channel": 5
 	},
 	"images": {
 		"saturation_boost" : 50,
