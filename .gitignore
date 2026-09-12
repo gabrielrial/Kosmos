@@ -1,9 +1,26 @@
-*.
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Runtime artifacts written next to the run
+stars_detected.png
+nebulas.png
+nebula_debug.png
+nebula_chords.txt
+output/
+
+# Media
 *.jpeg
-*.png
 *.jpg
-soundfont
+*.png
 *.wav
-*.mid
+# *.mid  (los renders van a output/, ya ignorado)
+soundfonts/
+*.sf2
+
+# Agent guide: kept local, not shared with the repo
 AGENTS.md
-imp.md
+
+# macOS
+.DS_Store
