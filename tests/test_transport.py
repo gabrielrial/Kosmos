@@ -637,3 +637,109 @@ class ChordReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             text = self.build(Path(name))
         self.assertIn("[nebula ]", text)
+
+
+class NoteSpacingTest(unittest.TestCase):
+    """Quantising alone makes every gap identical; spacing breaks that up."""
+
+    def build(self, count=40, min_spacing=2.0, variation=1.5, ranks=None,
+              phrase=64.0):
+        """Notes are laid across ``phrase`` beats, so a high ``count`` packs
+        them closer than the minimum and spacing actually has work to do."""
+
+        nebula = NebulaMidi()
+        nebula.chords.append(Chord(root=60, chord_type=ChordType.MAJOR))
+        nebula.duration.append(phrase)
+        spans = chord_spans([nebula])
+
+        stars = [
+            NoteEvent(
+                x=0, y=index, note=70, velocity=90, pan=64, duration=0.5,
+                channel=3, pan_cc=7,
+                brightness_rank=(ranks[index] if ranks else index / max(count - 1, 1)),
+            )
+            for index in range(count)
+        ]
+        builder = TimelineBuilder(
+            total_beats=phrase, grid=0.25, notes_per_slice=0,
+            min_spacing=min_spacing, spacing_variation=variation,
+        )
+        timeline = builder.build(spans, [("small", stars, 60, 84)], image_height=count)
+        starts = sorted(e.beat for e in timeline if e.label == "star_on")
+        return builder, starts
+
+    def test_consecutive_notes_respect_the_minimum(self):
+        _, starts = self.build(min_spacing=2.0, variation=0.0)
+        for earlier, later in zip(starts, starts[1:]):
+            self.assertGreaterEqual(round(later - earlier, 6), 2.0)
+
+    def test_brightness_widens_the_gap(self):
+        """The variation has to come from the image, not from chance."""
+
+        _, dim = self.build(count=60, ranks=[0.0] * 60)
+        _, bright = self.build(count=60, ranks=[1.0] * 60)
+        dim_gaps = [b - a for a, b in zip(dim, dim[1:])]
+        bright_gaps = [b - a for a, b in zip(bright, bright[1:])]
+        self.assertGreater(min(bright_gaps), max(dim_gaps))
+
+    def test_gaps_are_not_all_the_same(self):
+        _, starts = self.build(count=40)
+        gaps = {round(b - a, 4) for a, b in zip(starts, starts[1:])}
+        self.assertGreater(len(gaps), 2, "spacing should produce varied gaps")
+
+    def test_the_same_input_always_gives_the_same_rhythm(self):
+        """Derived from flux, so it is reproducible — unlike random jitter."""
+
+        _, first = self.build(count=30)
+        _, second = self.build(count=30)
+        self.assertEqual(first, second)
+
+    def test_notes_keep_their_order(self):
+        _, starts = self.build(count=30)
+        self.assertEqual(starts, sorted(starts))
+
+    def test_notes_pushed_past_the_phrase_are_dropped_not_stretched(self):
+        """Spacing must not let a dense layer run past the harmony."""
+
+        builder, starts = self.build(count=400, min_spacing=2.0, variation=1.5)
+        self.assertTrue(starts)
+        self.assertLess(max(starts), 64.0)
+        self.assertGreater(builder.dropped, 0)
+
+    def test_zero_spacing_leaves_the_timing_alone(self):
+        _, packed = self.build(count=200, min_spacing=0.0, variation=0.0)
+        _, spread = self.build(count=200, min_spacing=2.0, variation=0.0)
+        self.assertGreater(
+            len(packed), len(spread), "without spacing every note is kept"
+        )
+
+    def test_note_length_is_not_shortened_by_spacing(self):
+        """A note pushed past the last chord must keep its full length."""
+
+        nebula = NebulaMidi()
+        nebula.chords.append(Chord(root=60, chord_type=ChordType.MAJOR))
+        nebula.duration.append(40.0)
+        spans = chord_spans([nebula])
+        stars = [
+            NoteEvent(
+                x=0, y=index, note=70, velocity=90, pan=64, duration=0.5,
+                channel=3, pan_cc=7, brightness_rank=0.5,
+            )
+            for index in range(6)
+        ]
+        builder = TimelineBuilder(
+            total_beats=40.0, grid=0.25, notes_per_slice=0,
+            min_spacing=2.0, spacing_variation=1.0,
+        )
+        timeline = builder.build(spans, [("small", stars, 60, 84)], image_height=6)
+
+        starts = {}
+        lengths = []
+        for event in timeline:
+            if event.label == "star_on":
+                starts[event.message.note] = event.beat
+            elif event.label == "star_off" and event.message.note in starts:
+                lengths.append(event.beat - starts.pop(event.message.note))
+        self.assertTrue(lengths)
+        for length in lengths:
+            self.assertAlmostEqual(length, 0.5, places=6)

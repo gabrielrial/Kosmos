@@ -120,6 +120,8 @@ class TimelineBuilder:
         fit_stars_to_chord: bool = True,
         notes_per_slice: int = 0,
         duration_scale: float = 1.0,
+        min_spacing: float = 0.0,
+        spacing_variation: float = 0.0,
     ) -> None:
         self.total_beats = total_beats
         self.grid = grid
@@ -127,6 +129,8 @@ class TimelineBuilder:
         self.fit_stars_to_chord = fit_stars_to_chord
         self.notes_per_slice = notes_per_slice
         self.duration_scale = duration_scale
+        self.min_spacing = min_spacing
+        self.spacing_variation = spacing_variation
         self.spans: list[ChordSpan] = []
         self.dropped = 0
 
@@ -192,6 +196,7 @@ class TimelineBuilder:
                 for event in events
             ]
             placed = self._thin(placed)
+            placed = self._space(placed)
             for beat, event in placed:
                 span = _active_span(self.spans, beat)
                 note = event.note
@@ -199,8 +204,11 @@ class TimelineBuilder:
                     note = fit_to_chord(note, span.pitch_classes, low, high)
 
                 end = beat + event.duration * self.duration_scale
-                if span is not None:
-                    # Never hold a note through into the next chord.
+                if span is not None and beat < span.end_beat:
+                    # Never hold a note through into the next chord. Only
+                    # applies while the note starts inside a chord: past the
+                    # last one there is no next chord to protect, and
+                    # clamping there would silently shorten every note.
                     end = min(end, span.end_beat)
                 if end <= beat:
                     end = beat + self.grid
@@ -249,6 +257,49 @@ class TimelineBuilder:
         return timeline
 
     # ------------------------------------------------------------------
+    def _space(self, placed):
+        """Pull consecutive notes apart, by an amount the image decides.
+
+        Quantising puts every note on the grid, and with enough notes the grid
+        fills up: measured on one image, 645 of 900 gaps were exactly 0.25
+        beats. Everything lands on the same subdivision and the layer sounds
+        like a machine.
+
+        So each note claims a minimum gap after the one before it, plus an
+        extra share decided by its own brightness — brighter stars leave more
+        room behind them. The variation comes from the photograph, not from a
+        random number generator, which means the same image always produces
+        the same rhythm while no two stars get the same spacing.
+
+        Notes are pushed later, never earlier, so a note never jumps ahead of
+        one that was originally before it.
+        """
+
+        if self.min_spacing <= 0 and self.spacing_variation <= 0:
+            return placed
+        if not placed:
+            return placed
+
+        # Spacing pushes notes later, so a dense layer would run far past the
+        # harmony — on one image it stretched a 218-second piece to 29
+        # minutes. Notes that no longer fit inside the phrase are dropped
+        # instead, keeping the layer's own order and its brightest members.
+        limit = self.spans[-1].end_beat if self.spans else self.total_beats
+
+        spaced = []
+        previous = None
+        for beat, event in placed:
+            if previous is not None:
+                gap = self.min_spacing + self.spacing_variation * event.brightness_rank
+                beat = max(beat, previous + gap)
+            beat = quantise(beat, self.grid, self.quantise_strength)
+            if beat >= limit:
+                self.dropped += 1
+                continue
+            spaced.append((beat, event))
+            previous = beat
+        return spaced
+
     def _thin(self, placed):
         """Keep at most ``notes_per_slice`` notes per grid slice.
 
