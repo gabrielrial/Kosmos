@@ -1,4 +1,6 @@
-from typing import Any, Self
+from __future__ import annotations
+
+from typing import Any
 
 from config.config import Config
 from midi.device import MidiDevice
@@ -19,7 +21,7 @@ class MidiSetup:
         self.tempo: Tempo
         self.outport: dict[str, Any] = {}
 
-    def init(self) -> Self:
+    def init(self) -> "MidiSetup":
         self.tempo = Tempo(self.config.tempo)
         self.midi_devices = MidiDevice()
         print(f"[MIDI] ports open: {list(self.midi_devices.ports)}")
