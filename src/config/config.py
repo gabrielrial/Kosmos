@@ -217,25 +217,6 @@ class TempoConfig:
 
 
 @dataclass
-class InstrumentConfig:
-    bass_max_note_duration_beats: float = 4.0
-    stars_speed_beats: float = 0.5
-    stars_distance_scale: float = 0.005
-    stars_min_duration_beats: float = 0.25
-    stars_max_duration_beats: float = 2.0
-    stars_small_midi_channel: int = 3
-    stars_big_midi_channel: int = 5
-
-
-@dataclass
-class InstrumentNames:
-    small_stars: str = "Synth Small"
-    big_stars: str = "Synth Big"
-    bass: str = "Bass"
-    pad: str = "Pad"
-
-
-@dataclass
 class HarmonyConfig:
     nebula_total_duration_beats: float = 64.0
     octave_offset: int = 0
@@ -249,8 +230,6 @@ class Config:
     stars: StarsConfig
     transport: TransportConfig
     tempo: TempoConfig
-    instrument: InstrumentConfig
-    instruments_name: InstrumentNames
     harmony: HarmonyConfig
 
     image_path: Optional[str] = None
@@ -263,8 +242,6 @@ class Config:
         "stars": StarsConfig,
         "transport": TransportConfig,
         "tempo": TempoConfig,
-        "instrument": InstrumentConfig,
-        "instruments_name": InstrumentNames,
         "harmony": HarmonyConfig,
     }
 
@@ -414,22 +391,6 @@ class Config:
 
         check(self.tempo.bpm > 0, "tempo.bpm must be positive")
         check(self.tempo.subdivision > 0, "tempo.subdivision must be positive")
-
-        instrument = self.instrument
-        check(
-            instrument.stars_min_duration_beats > 0,
-            "stars_min_duration_beats must be positive",
-        )
-        check(
-            instrument.stars_max_duration_beats >= instrument.stars_min_duration_beats,
-            "stars_max_duration_beats must be >= stars_min_duration_beats",
-        )
-        for name in ("stars_small_midi_channel", "stars_big_midi_channel"):
-            check(0 <= getattr(instrument, name) <= 15, f"{name} must be 0-15")
-        check(
-            instrument.stars_small_midi_channel != instrument.stars_big_midi_channel,
-            "star MIDI channels must be different",
-        )
 
         check(
             self.harmony.nebula_total_duration_beats > 0,
