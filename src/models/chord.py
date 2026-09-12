@@ -3,8 +3,6 @@
 from dataclasses import dataclass
 from typing import Iterable
 
-from models.star import Star
-
 
 @dataclass(frozen=True, slots=True)
 class Chord:
@@ -45,32 +43,6 @@ class Chord:
         else:
             object.__setattr__(self, "root", int(self.root))
         object.__setattr__(self, "notes", notes)
-
-    @classmethod
-    def from_stars(
-        cls,
-        stars: Iterable[Star],
-        *,
-        duration: float = 0.0,
-        velocity: int | None = None,
-        channel: int = 0,
-        pan: int | None = None,
-    ) -> "Chord":
-        """Create a chord from the notes represented by detected stars."""
-
-        stars = tuple(stars)
-        if not stars:
-            raise ValueError("At least one star is required to create a chord")
-
-        average_velocity = round(sum(star.velocity for star in stars) / len(stars))
-        average_pan = round(sum(star.pan for star in stars) / len(stars))
-        return cls(
-            notes=tuple(star.note for star in stars),
-            duration=duration,
-            velocity=average_velocity if velocity is None else velocity,
-            channel=channel,
-            pan=average_pan if pan is None else pan,
-        )
 
     def contains(self, note: int) -> bool:
         """Return whether the chord contains a MIDI note."""

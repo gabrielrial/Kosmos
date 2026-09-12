@@ -1,59 +1,80 @@
 {
-	"star_detector": {
-		"white_threshold": {
-			"v": 0.7,
-			"s": 0.3
-		},
-		"ring_radius": 3,
-		"brightness_threshold": 70,
-		"small_stars": {
-			"contrast": 50
-		},
-		"local_background_radius": 12,
-		"detection_sigma": 8,
-		"minimum_contrast": 12,
-		"minimum_brightness": 20,
-		"minimum_distance": 4,
-		"measurement_radius": 8,
-		"minimum_area": 2,
-		"small_star_max_area": 30,
-		"nebula": {
-			"min_area": 5000,
-			"max_area": 0,
-			"contrast_threshold": 2,
-			"saturation_threshold": 1,
-			"brightness_threshold": 30
-			,
-			"blur_radius": 20
-		}
-	},
-	"tempo": {
-		"bpm": 90,
-		"subdivision": 16
-	},
-	"instrument": {
-		"bass": 1,
-		"bass_max_note_duration_beats": 4.0,
-		"stars_speed_beats": 0.5,
-		"stars_distance_scale": 0.005,
-		"stars_min_duration_beats": 0.25,
-		"stars_max_duration_beats": 2.0,
-		"stars_small_midi_channel": 3,
-		"stars_big_midi_channel": 5
-	},
-	"images": {
-		"saturation_boost" : 50,
-		"tolerance": 150,
-		"blur": 0
-	},
-	"instruments_name": {
-		"small_stars": "Synth Small",
-		"big_stars": "Synth Big",
-		"bass": "Bass",
-		"pad": "Pad"
-	},
-	"harmony": {
-		"nebula_total_duration_beats": 64,
-		"octave_offset": 0
-	}
+  "images": {
+    "working_size": 1600,
+    "saturation_boost": 1.5
+  },
+  "star_detector": {
+    "background_radius_frac": 0.0035,
+    "detection_sigma": 8.0,
+    "minimum_contrast": 4.0,
+    "minimum_brightness": 10.0,
+    "minimum_area_px": 2,
+    "max_area_frac": 0.0005,
+    "roundness_min": 0.55,
+    "max_elongation": 2.0,
+    "roundness_area_px": 12,
+    "big_star_flux_percentile": 98.0,
+    "aperture_radius_px": 1
+  },
+  "nebula_detector": {
+    "star_suppression_frac": 0.01,
+    "small_radius_frac": 0.004,
+    "large_radius_frac": 0.25,
+    "seed_sigma": 3.0,
+    "grow_mode": "sigma",
+    "grow_sigma": 0.5,
+    "grow_percentile": 70.0,
+    "max_cover_frac": 0.45,
+    "max_star_flux_share": 0.25,
+    "min_area_frac": 0.002,
+    "max_area_frac": 0.0,
+    "saturation_threshold": 0.0,
+    "dominant_colors": 5
+  },
+  "stars": {
+    "pan_cc": 7,
+    "shuffle": true,
+    "small_low_note": 67,
+    "small_high_note": 91,
+    "small_duration_beats": 0.5,
+    "small_channel": 3,
+    "big_low_note": 48,
+    "big_high_note": 67,
+    "big_duration_beats": 2.0,
+    "big_channel": 5,
+    "chord_channel": 0
+  },
+  "transport": {
+    "send_clock": true,
+    "send_song_position": true,
+    "grid_subdivision": 4,
+    "quantise_strength": 1.0,
+    "fit_stars_to_chord": true,
+    "count_in_beats": 4.0,
+    "notes_per_slice": 1,
+    "star_duration_scale": 1.0
+  },
+  "tempo": {
+    "bpm": 90,
+    "subdivision": 16
+  },
+  "instrument": {
+    "bass_max_note_duration_beats": 4.0,
+    "stars_speed_beats": 0.5,
+    "stars_distance_scale": 0.005,
+    "stars_min_duration_beats": 0.25,
+    "stars_max_duration_beats": 2.0,
+    "stars_small_midi_channel": 3,
+    "stars_big_midi_channel": 5
+  },
+  "instruments_name": {
+    "small_stars": "Synth Small",
+    "big_stars": "Synth Big",
+    "bass": "Bass",
+    "pad": "Pad"
+  },
+  "harmony": {
+    "nebula_total_duration_beats": 64,
+    "octave_offset": 0
+  }
 }

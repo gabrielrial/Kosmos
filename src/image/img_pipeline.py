@@ -1,255 +1,65 @@
-import PIL
-import numpy as np
-from PIL import Image, ImageFilter, ImageEnhance
-from models.images import Images
+"""Image preparation.
+
+One job: load the file and bring it to the configured working size, so that
+everything downstream measures the same thing regardless of which resolution
+of an image you happen to have.
+
+This matters more than it looks. Measured on one image at 450, 900 and 1800
+pixels, the old detector found 142, 961 and 4,121 stars — 29 times more stars
+for 16 times more pixels. Fixing the working size makes the number of notes a
+decision instead of an accident.
+"""
+
+from __future__ import annotations
+
+from PIL import Image, ImageEnhance
+
 from config.config import ImageConfig
-from collections import deque
+from models.images import Images
 
 
 class ImagePipeLine:
-
-    def __init__(self, image_path: str, config: ImageConfig):
-
+    def __init__(self, image_path: str, config: ImageConfig) -> None:
         self.image_path = image_path
-
+        self.config = config
         self.images = Images()
 
-        self.config = config
-
     def process(self) -> Images:
-        """ImageFilter
-        Processes the image: magic wand, detection, and color analysis.
-        ImageFilter
-        4. Detects starts on simplified image, and takes color from staruated image
-        5. Extracts dominants colors for bass.
-        """
-
-        self._loads_img()
-        self._blurs_img()
-        self._saturate_img()
-        self.magic_wand()
-        #self._reduce_to_dominant_colors()
-
+        self._load()
         return self.images
 
-    def _loads_img(self) -> None:
-        """
-        Loads the original image as Image PIL class, ang gets its attributes.
-        """
-        self.images.original_img = Image.open(self.image_path).convert("RGB")
-        self.images.width, self.images.height = self.images.original_img.size
+    def _load(self) -> None:
+        image = Image.open(self.image_path).convert("RGB")
+        source_size = image.size
+        scale = 1.0
 
-    def _blurs_img(self) -> None:
-        self.images.blurred_img = self.images.original_img.filter(
-            ImageFilter.BoxBlur(25)
-        )
-        self.images.blurred_img.save("blurred_img.png")
+        target = self.config.working_size
+        if target > 0 and max(source_size) > target:
+            scale = target / max(source_size)
+            image = image.resize(
+                (
+                    max(1, round(source_size[0] * scale)),
+                    max(1, round(source_size[1] * scale)),
+                ),
+                Image.LANCZOS,
+            )
 
-    def _saturate_img(self) -> None:
+        self.images.original_img = image
+        self.images.width, self.images.height = image.size
+        self.images.source_size = source_size
+        self.images.scale = scale
 
-        sturate = PIL.ImageEnhance.Color(self.images.original_img)
-        self.images.saturated_img = sturate.enhance(self.config.saturation_boost)
-        self.images.saturated_img.save("saturated_img.png")
+        if scale < 1.0:
+            print(
+                f"[Image] {source_size[0]}x{source_size[1]} resized to "
+                f"{image.size[0]}x{image.size[1]} (working size {target})"
+            )
+        else:
+            print(f"[Image] {image.size[0]}x{image.size[1]}, no resize needed")
 
-    def magic_wand(
-        self,
-        output_path: str = "magic_wand.png",
-        tolerance: int = 150,
-    ) -> None:
-        """
-        Groups pixels of similar colors and replaces with average color.
+    def saturate(self) -> Image.Image:
+        """Saturated copy, for colour sampling. Not part of the default path."""
 
-        Simulates Photoshop's "magic wand": finds connected regions
-        of similar colors and paints them with the average color of the region.
-
-        Args:
-            output_path: Path to save processed image
-            tolerance: Maximum color distance to group (0-255)
-        """
-        img = self.images.original_img.copy()
-        w, h = self.images.width, self.images.height
-        pixels = img.load()
-        visited = np.zeros((w, h), dtype=bool)
-
-        def color_distance(c1, c2):
-            return (c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2
-
-        # Iterate through each unvisited pixel
-        for y in range(h):
-            for x in range(w):
-                if visited[x, y]:
-                    continue
-
-                orig_color = pixels[x, y]
-                queue = deque([(x, y)])
-                region = []
-
-                # Flood fill to find connected region
-                while queue:
-                    cx, cy = queue.popleft()
-                    if visited[cx, cy]:
-                        continue
-                    cur_color = pixels[cx, cy]
-
-                    # Add to region if color is similar
-                    if color_distance(orig_color, cur_color) <= tolerance * tolerance:
-                        region.append((cx, cy))
-
-                    visited[cx, cy] = True
-
-                    # Add unvisited neighbors
-                    for nx, ny in [
-                        (cx + 1, cy),
-                        (cx - 1, cy),
-                        (cx, cy + 1),
-                        (cx, cy - 1),
-                    ]:
-                        if 0 <= nx < w and 0 <= ny < h and not visited[nx, ny]:
-                            queue.append((nx, ny))
-
-                # Replace region with average color
-                if region:
-                    avg_r = int(np.mean([pixels[px, py][0] for px, py in region]))
-                    avg_g = int(np.mean([pixels[px, py][1] for px, py in region]))
-                    avg_b = int(np.mean([pixels[px, py][2] for px, py in region]))
-
-                    for px, py in region:
-                        pixels[px, py] = (avg_r, avg_g, avg_b)
-
-        img.save(output_path)
-        self.images.main_colors_img = img
-        print(f"[OK] Magic wand saved at: {output_path}")
-
-
-    def _get_dominant_colors(
-        self,
-        min_percentage: float = 0.02,
-    ) -> list[tuple[tuple[int, int, int], float]]:
-        """
-        Returns the dominant colors of self.images.main_colors_img.
-        """
-
-        from collections import Counter
-
-        data = list(self.images.original_img.getdata())
-        total_pixels = len(data)
-
-        counter = Counter(data)
-
-        dominant = []
-
-        for color, count in counter.items():
-            percentage = count / total_pixels
-
-            if percentage >= min_percentage:
-                dominant.append((color, percentage))
-
-        dominant.sort(key=lambda x: x[1], reverse=True)
-
-        return dominant
-
-    def _reduce_to_dominant_colors(self) -> None:
-        """Replaces every pixel by the nearest dominant color."""
-
-        dominant = self._get_dominant_colors(0.001)
-
-        img = self.images.original_img.copy()
-
-        pixels = img.load()
-
-        w, h = img.size
-
-        colors = [color for color, _ in dominant]
-
-        def color_distance(c1, c2):
-            return (c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2
-
-        for y in range(h):
-            for x in range(w):
-
-                original = pixels[x, y]
-
-                closest = min(
-                    colors,
-                    key=lambda c: color_distance(c, original),
-                )
-
-                pixels[x, y] = closest
-
-        self.images.dominant_img = img
-
-        img.save("dominant_colors.png")
-
-
-"""
-        
-        print("\n[Image Processing]")
-
-        processor = ImageProcessor(self.image_path)
-        
-        # 1. Saturate original image (for more vibrant colors)
-        print("  - Saturating original image...")
-        saturated_path = str(self.output_dir / "saturated.png")
-        saturated_imgblur_img = processor.save_saturated_image(
-            saturated_path,
-            saturation_boost=1.5  # 50% more saturation
-        )
-    
-         #2. Magic Wand: group similar colors
-        print("  - Magic Wand (grouping colors)...")
-        magic_wand_path = str(self.output_dir / "magic_wand.png")
-        processor.save_magic_wand_colors(
-            magic_wand_path,
-            tolerance=self.config.predominant_color.tolerance
-        )
-        
-        # 3. Reduce to dominant colors
-        print("  - Analyzing dominant colors...")
-        dominant = processor.get_dominant_colors(magic_wand_path)
-        
-        simplified_path = str(self.output_dir / "resultado_simplificado.png")
-        print("  - Reducing to dominant colors...")
-        processor.reduce_to_dominant_colors(
-            magic_wand_path,
-            dominant,
-            simplified_path
-        )
-        
-
-  
-        
-        # 4. Detect stars in simplified image (but extract colors from saturated original)
-        print("  - Detecting stars...")
-        simplified_img = Image.open(simplified_path).convert("RGB")
-        
-        # Create detector with configuration parameters
-        utils = DetectionUtils(
-            white_threshold_v=self.config.star_detector.white_threshold_v,
-            
-		# Opens a image in RGB mode
-		im = Image.open(r"geek.jpg")
-
-		# Blurring the image
-		im1 = im.filter(ImageFilter.BoxBlur(4))
-
-		# Shows the image in image viewer
-		im1.show()white_threshold_s=self.config.star_detector.white_threshold_s,
-            ring_radius=self.config.star_detector.ring_radius,
-            contrast_threshold=self.config.star_detector.contrast_threshold,
-            brightness_threshold=self.config.star_detector.brightness_threshold,
-        )
-        
-        detector = StarDetector(utils, save_previews=True, preview_dir=str(self.output_dir))
-        # Detectar en imagen simplificada, pero tomar colores de imagen original saturada
-        self.small_stars, self.big_stars = detector.detect(
-            simplified_img,
-            color_source_image=saturated_img
-        )
-        
-        print(f"    ✓ {len(self.small_stars)} small stars")
-        print(f"    ✓ {len(self.big_stars)} large stars")
-        
-        # 5. Extract dominant colors for the bass
-        print("  - Preparing colors for bass...")
-        self.dominant_colors = dominant
-		"""
+        enhancer = ImageEnhance.Color(self.images.original_img)
+        self.images.saturated_img = enhancer.enhance(self.config.saturation_boost)
+        return self.images.saturated_img

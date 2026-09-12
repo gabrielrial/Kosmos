@@ -1,412 +1,460 @@
-from dataclasses import dataclass
+"""Typed configuration loaded from a JSON file.
+
+Every value the detectors use is declared here as a dataclass field. Keys that
+appear in the JSON but match no field are reported rather than ignored, so a
+typo in ``conf.json`` is visible instead of silently falling back to a default.
+
+Lengths are expressed as fractions of the image's longest side, not pixels.
+That way ``images.working_size`` can change without recalibrating every radius.
+"""
+
+from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Any, Optional, TypeVar
 
 from error.errors import ERR_FILE_NOT_FOUND
 
+T = TypeVar("T")
+
+
 @dataclass
 class ImageConfig:
-    """Configuration for images"""
+    """Image preparation.
+
+    working_size        the longest side is resized to this before analysis,
+                        so the result no longer depends on which resolution of
+                        a file you happen to have. 0 disables resizing.
+    saturation_boost    saturation multiplier used for colour sampling
+    """
+
+    working_size: int = 1600
     saturation_boost: float = 1.5
-    tolerance: int = 100
-    blur: float = 1
+
 
 @dataclass
 class StarDetectorConfig:
-    """Configuration for the star detector"""
+    """Point-source extraction.
 
-    white_threshold_v: float = 0.7
-    white_threshold_s: float = 0.5
-    brightness_threshold: int = 1000
-    ring_radius: int = 2
-    contrast_threshold: int = 60
-    local_background_radius: float = 12.0
-    detection_sigma: float = 3.0
-    minimum_contrast: float = 12.0
-    minimum_brightness: float = 20.0
-    minimum_distance: int = 4
-    measurement_radius: int = 8
-    minimum_area: int = 1
-    small_star_max_area: int = 30
-    nebula_min_area: int = 100
-    nebula_max_area: int = 0
-    nebula_contrast_threshold: float = 8.0
-    nebula_saturation_threshold: float = 18.0
-    nebula_brightness_threshold: float = 20.0
-    nebula_blur_radius: float = 12.0
+    background_radius_frac    blur scale used to estimate the local sky. Must
+                              be larger than a star and smaller than the
+                              structures you want to keep out of the stars
+    detection_sigma           threshold in units of MAD noise above the sky
+    minimum_contrast          absolute floor for that threshold
+    minimum_brightness        absolute luminance floor, 0-255
+    minimum_area_px           regions smaller than this are noise
+    max_area_frac             regions larger than this fraction of the frame
+                              are not point sources
+    roundness_min             minimum area / bounding-box ratio, which
+                              rejects sparse ragged shapes
+    max_elongation            maximum bounding-box aspect ratio, which rejects
+                              solid but stretched shapes. Both are needed: a
+                              bar passes the fill test, a wisp passes the
+                              aspect test, and neither is a star
+    roundness_area_px         only test roundness above this area, since a
+                              three-pixel source is trivially round
+    big_star_flux_percentile  the split between the two layers, as a
+                              percentile of this image's own flux
+                              distribution. 98 means the brightest 2% play the
+                              low layer
+    aperture_radius_px        radius of the colour-sampling aperture
+    """
+
+    background_radius_frac: float = 0.0035
+    detection_sigma: float = 8.0
+    minimum_contrast: float = 4.0
+    minimum_brightness: float = 10.0
+    minimum_area_px: int = 2
+    max_area_frac: float = 0.0005
+    roundness_min: float = 0.55
+    max_elongation: float = 2.0
+    roundness_area_px: int = 12
+    big_star_flux_percentile: float = 98.0
+    aperture_radius_px: int = 1
 
 
 @dataclass
-class SmallStarsConfig:
-    """Configuration specific for small stars"""
+class NebulaDetectorConfig:
+    """Diffuse-region extraction from the mid-frequency band.
 
-    contrast: int = 60
+    Detection uses hysteresis: two thresholds instead of one. The high
+    threshold decides where there is definitely nebulosity (the seeds); the
+    low threshold decides how far each one reaches, and a pixel is kept only
+    if it clears the low threshold *and* connects back to a seed. A nebula has
+    no edge, it fades out, so a single threshold cuts the halo off and leaves
+    disconnected bright cores instead of one cloud.
+
+    star_suppression_frac  radius of a median filter applied before the band,
+                           as a fraction of the longest side. A median ignores
+                           outliers, so a star smaller than the window is
+                           replaced by its surroundings while a nebula edge
+                           survives. 0 disables it. Needed because blurring
+                           does not remove a bright star, it only spreads it:
+                           measured on a real image, the halo of the brightest
+                           stars stayed above the seed threshold out to a
+                           radius of 12 px
+    small_radius_frac      upper edge of the band; large enough to erase stars
+    large_radius_frac      lower edge; must be clearly larger than the biggest
+                           structure you want to keep, or a nebula filling the
+                           frame subtracts itself and only its filaments
+                           survive
+    seed_sigma             high threshold, in units of MAD noise. Where a
+                           region is allowed to start
+    grow_mode              "sigma" grows to ``grow_sigma`` above the noise;
+                           "percentile" grows to ``grow_percentile`` of this
+                           image's own band signal, which adapts between very
+                           different photographs
+    grow_sigma             low threshold for grow_mode "sigma"
+    grow_percentile        low threshold for grow_mode "percentile", as a
+                           percentile of the band. 70 keeps the brightest 30%
+    max_cover_frac         safety stop: if growing would mask more than this
+                           share of the frame, the low threshold is raised
+                           until it fits. Stops a strong sky gradient from
+                           swallowing the picture
+    max_star_flux_share    a region is discarded when this share or more of
+                           its signal comes from point sources. Suppression
+                           removes a star's core but not always its outer
+                           halo, so this is the second line of defence: it
+                           asks where the light actually came from rather than
+                           what the region looks like. 1.0 disables it
+    min_area_frac          smallest region worth a musical phrase
+    max_area_frac          0 disables the upper limit
+    saturation_threshold   0 accepts colourless structure
+    dominant_colors        how many representative colours per region
+    """
+
+    star_suppression_frac: float = 0.010
+    small_radius_frac: float = 0.004
+    large_radius_frac: float = 0.25
+    seed_sigma: float = 3.0
+    grow_mode: str = "sigma"
+    grow_sigma: float = 0.5
+    grow_percentile: float = 70.0
+    max_cover_frac: float = 0.45
+    max_star_flux_share: float = 0.25
+    min_area_frac: float = 0.002
+    max_area_frac: float = 0.0
+    saturation_threshold: float = 0.0
+    dominant_colors: int = 5
+
+
+@dataclass
+class StarsConfig:
+    """How the two star layers are voiced and sent.
+
+    Note ranges are MIDI numbers: 60 is middle C. The two layers overlap by
+    design at the top of the big range so they sound like one instrument
+    family rather than two disconnected registers.
+
+    pan_cc is the controller used for stereo position. 10 is the MIDI standard
+    and works with no setup; 7 is nominally volume but works if it is mapped
+    by hand in the DAW.
+    """
+
+    pan_cc: int = 7
+    shuffle: bool = True
+    small_low_note: int = 67
+    small_high_note: int = 91
+    small_duration_beats: float = 0.5
+    small_channel: int = 3
+    big_low_note: int = 48
+    big_high_note: int = 67
+    big_duration_beats: float = 2.0
+    big_channel: int = 5
+    chord_channel: int = 0
+
+
+@dataclass
+class TransportConfig:
+    """Clock and grid.
+
+    send_clock          emit MIDI beat clock so a DAW can follow Kosmos. In
+                        Ableton Live: Preferences > Link/Tempo/MIDI, set Sync
+                        On for the Kosmos clock port, then put the transport
+                        in EXT
+    send_song_position  send a song-position pointer of 0 before start, so the
+                        DAW begins from the top rather than wherever it was
+    grid_subdivision    the rhythmic grid, in divisions of a beat. 4 is
+                        sixteenth notes
+    quantise_strength   how far star notes are pulled onto that grid. 1.0
+                        snaps exactly, 0.0 leaves them where the image put
+                        them, and values between keep some of the original
+                        irregularity while still letting a pulse be felt
+    fit_stars_to_chord  move each star note to the nearest pitch of the chord
+                        sounding under it. Without this stars are only
+                        restricted to the union of every chord in the piece,
+                        which with several nebulae is all twelve pitch classes
+                        and therefore no restriction at all
+    count_in_beats      silence before the first event, so a DAW locking to
+                        the clock has time to catch up
+    notes_per_slice     how many star notes may start in one grid slice. This
+                        is the density control, and it is the one that decides
+                        whether the piece sounds like music or like a cloud.
+                        A slice keeps its loudest notes and drops the rest, so
+                        thinning removes the faint ones first and a sparse
+                        region of the image stays sparse instead of being
+                        padded. 0 keeps everything
+    star_duration_scale multiplies both layers' note lengths. Raise it to make
+                        notes ring into each other, lower it for a drier sound
+    """
+
+    send_clock: bool = True
+    send_song_position: bool = True
+    grid_subdivision: int = 4
+    quantise_strength: float = 1.0
+    fit_stars_to_chord: bool = True
+    count_in_beats: float = 4.0
+    notes_per_slice: int = 1
+    star_duration_scale: float = 1.0
 
 
 @dataclass
 class TempoConfig:
-    """Configuration for global tempo"""
-
-    bpm: int = 120
+    bpm: int = 90
     subdivision: int = 16
 
 
 @dataclass
 class InstrumentConfig:
-    """Configuration for MIDI instruments"""
-
-    bass_speed_beats: float = 0.4
     bass_max_note_duration_beats: float = 4.0
-    stars_speed_beats: float = 80
+    stars_speed_beats: float = 0.5
     stars_distance_scale: float = 0.005
     stars_min_duration_beats: float = 0.25
     stars_max_duration_beats: float = 2.0
     stars_small_midi_channel: int = 3
     stars_big_midi_channel: int = 5
 
+
 @dataclass
 class InstrumentNames:
-    """Name for MIDI instruments"""
+    small_stars: str = "Synth Small"
+    big_stars: str = "Synth Big"
+    bass: str = "Bass"
+    pad: str = "Pad"
 
-    instrument_small: str = "synth_big"
-    instrument_big: str = "synth_big"
-    instrument_bass: str = "bass"
-    instrument_pad: str = "pad"
-    
 
 @dataclass
 class HarmonyConfig:
-    """Configuration related to harmony generation."""
-
-    # Total phrase length of a nebula in beats. This is the total amount of time
-    # that the generated chords for one nebula will occupy before moving to the
-    # next phrase. A value like 32 means roughly two bars at 4/4.
-    nebula_total_duration_beats: int = 32
-
-    # Octave offset used for harmonic root generation.
-    # 0 = C2 (MIDI 36), +1 = C3 (MIDI 48), -1 = C1 (MIDI 24).
+    nebula_total_duration_beats: float = 64.0
     octave_offset: int = 0
 
 
 @dataclass
 class Config:
+    images: ImageConfig
     star_detector: StarDetectorConfig
-    small_stars: SmallStarsConfig
+    nebula_detector: NebulaDetectorConfig
+    stars: StarsConfig
+    transport: TransportConfig
     tempo: TempoConfig
     instrument: InstrumentConfig
-    images: ImageConfig
     instruments_name: InstrumentNames
     harmony: HarmonyConfig
 
-    # Paths (optional, for easier testing)
     image_path: Optional[str] = None
     output_dir: Optional[str] = None
 
+    _SECTIONS = {
+        "images": ImageConfig,
+        "star_detector": StarDetectorConfig,
+        "nebula_detector": NebulaDetectorConfig,
+        "stars": StarsConfig,
+        "transport": TransportConfig,
+        "tempo": TempoConfig,
+        "instrument": InstrumentConfig,
+        "instruments_name": InstrumentNames,
+        "harmony": HarmonyConfig,
+    }
+
     @classmethod
     def from_json(cls, config_path: str) -> "Config":
-        """
-        Load configuration from a JSON file.
-
-        Args:
-            config_path: Path to the JSON configuration file
-
-        Returns:
-            Config: Configuration instance
-
-        Raises:
-            FileNotFoundError: If the file does not exist
-            json.JSONDecodeError: If the JSON is invalid
-            ValueError: If required fields are missing
-        """
         path = Path(config_path)
-
         if not path.exists():
-            raise FileNotFoundError(ERR_FILE_NOT_FOUND, f" {config_path}")
+            raise FileNotFoundError(f"{ERR_FILE_NOT_FOUND}: {config_path}")
 
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-        except json.JSONDecodeError as e:
-            raise json.JSONDecodeError(
-                f"Invalid JSON in {config_path}: {e}", e.doc, e.pos
-            )
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
 
-        return cls._from_dict(data)
+        sections: dict[str, Any] = {}
+        unknown: list[str] = []
+        for name, section_type in cls._SECTIONS.items():
+            section, extra = _build(section_type, data.get(name, {}))
+            sections[name] = section
+            unknown.extend(f"{name}.{key}" for key in extra)
 
-    @classmethod
-    def _from_dict(cls, data: Dict[str, Any]) -> "Config":
-        """Creates a Config instance from a dictionary."""
+        for key in data:
+            if key not in cls._SECTIONS and key not in ("image_path", "output_dir"):
+                unknown.append(key)
+        if unknown:
+            print(f"[Config] ignored unknown keys: {', '.join(sorted(unknown))}")
 
         return cls(
-            star_detector=StarDetectorConfig(
-                white_threshold_v=data.get("star_detector", {})
-                .get("white_threshold", {})
-                .get("v", 0.65),
-                white_threshold_s=data.get("star_detector", {})
-                .get("white_threshold", {})
-                .get("s", 0.2),
-                brightness_threshold=data.get("star_detector", {}).get(
-                    "brightness_threshold", 180
-                ),
-                ring_radius=data.get("star_detector", {}).get("ring_radius", 2),
-                contrast_threshold=data.get("star_detector", {})
-                .get("small_stars", {})
-                .get("contrast", 60),
-                local_background_radius=data.get("star_detector", {})
-                .get("local_background_radius", 12),
-                detection_sigma=data.get("star_detector", {})
-                .get("detection_sigma", 3),
-                minimum_contrast=data.get("star_detector", {})
-                .get("minimum_contrast", 12),
-                minimum_brightness=data.get("star_detector", {})
-                .get("minimum_brightness", 20),
-                minimum_distance=data.get("star_detector", {})
-                .get("minimum_distance", 4),
-                measurement_radius=data.get("star_detector", {})
-                .get("measurement_radius", 8),
-                minimum_area=data.get("star_detector", {})
-                .get("minimum_area", 1),
-                small_star_max_area=data.get("star_detector", {})
-                .get("small_star_max_area", 30),
-                nebula_min_area=data.get("star_detector", {})
-                .get("nebula", {})
-                .get("min_area", 100),
-                nebula_max_area=data.get("star_detector", {})
-                .get("nebula", {})
-                .get("max_area", 0),
-                nebula_contrast_threshold=data.get("star_detector", {})
-                .get("nebula", {})
-                .get("contrast_threshold", 8),
-                nebula_saturation_threshold=data.get("star_detector", {})
-                .get("nebula", {})
-                .get("saturation_threshold", 18),
-                nebula_brightness_threshold=data.get("star_detector", {})
-                .get("nebula", {})
-                .get("brightness_threshold", 20),
-                nebula_blur_radius=data.get("star_detector", {})
-                .get("nebula", {})
-                .get("blur_radius", 12),
-            ),
-            small_stars=SmallStarsConfig(
-                contrast=data.get("star_detector", {})
-                .get("small_stars", {})
-                .get("contrast", 60),
-            ),
-            tempo=TempoConfig(
-                bpm=data.get("tempo", {}).get("bpm", 120),
-                subdivision=data.get("tempo", {}).get("subdivision", 16),
-            ),
-            instrument=InstrumentConfig(
-                bass_speed_beats=data.get("instrument", {}).get(
-                    "bass_speed_beats", 0.4
-                ),
-                bass_max_note_duration_beats=data.get("instrument", {}).get(
-                    "bass_max_note_duration_beats", 4.0
-                ),
-                stars_speed_beats=data.get("instrument", {}).get(
-                    "stars_speed_beats", 0.5
-                ),
-                stars_distance_scale=data.get("instrument", {}).get(
-                    "stars_distance_scale", 0.005
-                ),
-                stars_min_duration_beats=data.get("instrument", {}).get(
-                    "stars_min_duration_beats", 0.25
-                ),
-                stars_max_duration_beats=data.get("instrument", {}).get(
-                    "stars_max_duration_beats", 2.0
-                ),
-                stars_small_midi_channel=data.get("instrument", {}).get(
-                    "stars_small_midi_channel", 3
-                ),
-                stars_big_midi_channel=data.get("instrument", {}).get(
-                    "stars_big_midi_channel", 5
-                ),
-            ),
-            images = ImageConfig(
-                saturation_boost=data.get("images", {}).get("saturation_boost", 2),
-                tolerance=data.get("images", {}).get("tolerance", 150),
-                blur=data.get("images", {}).get("blur", 0)
-            ),
-            instruments_name = InstrumentNames(
-                instrument_small=data.get("instruments_name", {}).get("small_stars", "Synth Small"),
-                instrument_big=data.get("instruments_name", {}).get("big_stars", "Synth Big"),
-                instrument_bass=data.get("instruments_name", {}).get("bass", "Bass"),
-                instrument_pad=data.get("instruments_name", {}).get("pad", "Pad")
-            ),
-            harmony=HarmonyConfig(
-                nebula_total_duration_beats=data.get("harmony", {}).get("nebula_total_duration_beats", 32),
-                octave_offset=data.get("harmony", {}).get("octave_offset", 0)
-            ),
-            
             image_path=data.get("image_path"),
             output_dir=data.get("output_dir"),
+            **sections,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Converts the configuration to a dictionary (useful for debugging)."""
-        return {
-            "star_detector": {
-                "white_threshold": {
-                    "v": self.star_detector.white_threshold_v,
-                    "s": self.star_detector.white_threshold_s,
-                },
-                "brightness_threshold": self.star_detector.brightness_threshold,
-                "ring_radius": self.star_detector.ring_radius,
-                "small_stars": {
-                    "contrast": self.small_stars.contrast,
-                },
-                "local_background_radius": self.star_detector.local_background_radius,
-                "detection_sigma": self.star_detector.detection_sigma,
-                "minimum_contrast": self.star_detector.minimum_contrast,
-                "minimum_brightness": self.star_detector.minimum_brightness,
-                "minimum_distance": self.star_detector.minimum_distance,
-                "measurement_radius": self.star_detector.measurement_radius,
-                "minimum_area": self.star_detector.minimum_area,
-                "small_star_max_area": self.star_detector.small_star_max_area,
-                "nebula": {
-                    "min_area": self.star_detector.nebula_min_area,
-                    "max_area": self.star_detector.nebula_max_area,
-                    "contrast_threshold": self.star_detector.nebula_contrast_threshold,
-                    "saturation_threshold": self.star_detector.nebula_saturation_threshold,
-                    "brightness_threshold": self.star_detector.nebula_brightness_threshold,
-                    "blur_radius": self.star_detector.nebula_blur_radius,
-                },
-            },
-            "image": {
-                "saturation_boost": self.images.saturation_boost,
-                "tolerance": self.images.tolerance,
-                "blur": self.images.blur,
-            },
-            "tempo": {
-                "bpm": self.tempo.bpm,
-                "subdivision": self.tempo.subdivision
-            },
-            "instrument": {
-                "bass_speed_beats": self.instrument.bass_speed_beats,
-                "bass_max_note_duration_beats": self.instrument.bass_max_note_duration_beats,
-                "stars_speed_beats": self.instrument.stars_speed_beats,
-                "stars_distance_scale": self.instrument.stars_distance_scale,
-                "stars_min_duration_beats": self.instrument.stars_min_duration_beats,
-                "stars_max_duration_beats": self.instrument.stars_max_duration_beats,
-                "stars_small_midi_channel": self.instrument.stars_small_midi_channel,
-                "stars_big_midi_channel": self.instrument.stars_big_midi_channel,
-            },
-            "harmony": {
-                "nebula_total_duration_beats": self.harmony.nebula_total_duration_beats,
-                "octave_offset": self.harmony.octave_offset
-            },
-        }
+    def validate(self) -> None:
+        """Raise ValueError listing everything that is out of range."""
 
-    def validate(self) -> bool:
+        errors: list[str] = []
 
-        errors = []
+        def check(condition: bool, message: str) -> None:
+            if not condition:
+                errors.append(message)
 
-        # Validate BPM
-        if self.tempo.bpm <= 0:
-            errors.append(f"BPM must be positive, received: {self.tempo.bpm}")
-        if self.tempo.subdivision <= 0:
-            errors.append(f"Division must be positive, received: {self.tempo.subdivision}")
+        check(self.images.working_size >= 0, "images.working_size cannot be negative")
+        check(
+            self.images.saturation_boost >= 0,
+            "images.saturation_boost cannot be negative",
+        )
 
-        # Validate thresholds (0-1)
-        if not (0 <= self.star_detector.white_threshold_v <= 1):
-            errors.append(f"white_threshold_v must be between 0 and 1")
-        if not (0 <= self.star_detector.white_threshold_s <= 1):
-            errors.append(f"white_threshold_s must be between 0 and 1")
+        star = self.star_detector
+        check(star.background_radius_frac > 0, "background_radius_frac must be positive")
+        check(star.detection_sigma > 0, "detection_sigma must be positive")
+        check(star.minimum_contrast >= 0, "minimum_contrast cannot be negative")
+        check(
+            0 <= star.minimum_brightness <= 255,
+            "minimum_brightness must be between 0 and 255",
+        )
+        check(star.minimum_area_px >= 1, "minimum_area_px must be at least 1")
+        check(star.max_area_frac >= 0, "max_area_frac cannot be negative")
+        check(0 <= star.roundness_min <= 1, "roundness_min must be between 0 and 1")
+        check(star.max_elongation >= 1, "max_elongation must be at least 1")
+        check(
+            0 < star.big_star_flux_percentile < 100,
+            "big_star_flux_percentile must be between 0 and 100 exclusive",
+        )
+        check(star.aperture_radius_px >= 0, "aperture_radius_px cannot be negative")
 
-        # Validate brightness (0-255)
-        if not (0 <= self.star_detector.brightness_threshold <= 255):
-            errors.append(f"brightness_threshold must be between 0 and 255")
+        nebula = self.nebula_detector
+        check(
+            nebula.star_suppression_frac >= 0,
+            "star_suppression_frac cannot be negative",
+        )
+        check(nebula.small_radius_frac > 0, "small_radius_frac must be positive")
+        check(
+            nebula.large_radius_frac > nebula.small_radius_frac,
+            "large_radius_frac must be larger than small_radius_frac",
+        )
+        check(nebula.seed_sigma > 0, "nebula seed_sigma must be positive")
+        check(
+            nebula.grow_mode in ("sigma", "percentile"),
+            'nebula grow_mode must be "sigma" or "percentile"',
+        )
+        check(
+            nebula.grow_sigma <= nebula.seed_sigma,
+            "grow_sigma must not exceed seed_sigma (the halo threshold is the "
+            "lower of the two)",
+        )
+        check(
+            0 < nebula.grow_percentile < 100,
+            "grow_percentile must be between 0 and 100 exclusive",
+        )
+        check(
+            0 < nebula.max_cover_frac <= 1,
+            "max_cover_frac must be between 0 and 1",
+        )
+        check(
+            0 < nebula.max_star_flux_share <= 1,
+            "max_star_flux_share must be between 0 and 1",
+        )
+        check(nebula.min_area_frac > 0, "min_area_frac must be positive")
+        check(nebula.max_area_frac >= 0, "max_area_frac cannot be negative")
+        check(
+            0 <= nebula.saturation_threshold <= 1,
+            "nebula saturation_threshold must be between 0 and 1",
+        )
+        check(nebula.dominant_colors >= 1, "dominant_colors must be at least 1")
 
-        # Validate contrast
-        if self.small_stars.contrast < 0:
-            errors.append(f"contrast cannot be negative")
-        if self.star_detector.local_background_radius <= 0:
-            errors.append("local_background_radius must be positive")
-        if self.star_detector.detection_sigma <= 0:
-            errors.append("detection_sigma must be positive")
-        if self.star_detector.minimum_contrast < 0:
-            errors.append("minimum_contrast cannot be negative")
-        if self.star_detector.minimum_brightness < 0:
-            errors.append("minimum_brightness cannot be negative")
-        if self.star_detector.minimum_distance < 1:
-            errors.append("minimum_distance must be positive")
-        if self.star_detector.measurement_radius < 1:
-            errors.append("measurement_radius must be positive")
-        if self.star_detector.minimum_area < 1:
-            errors.append("minimum_area must be positive")
-        if self.star_detector.small_star_max_area < 1:
-            errors.append("small_star_max_area must be positive")
-        if self.star_detector.nebula_min_area < 1:
-            errors.append("nebula min_area must be positive")
-        if self.star_detector.nebula_max_area < 0:
-            errors.append("nebula max_area cannot be negative")
-        if self.star_detector.nebula_contrast_threshold < 0:
-            errors.append("nebula contrast_threshold cannot be negative")
-        if self.star_detector.nebula_saturation_threshold < 0:
-            errors.append("nebula saturation_threshold cannot be negative")
-        if self.star_detector.nebula_brightness_threshold < 0:
-            errors.append("nebula brightness_threshold cannot be negative")
-        if self.star_detector.nebula_blur_radius <= 0:
-            errors.append("nebula blur_radius must be positive")
+        stars = self.stars
+        check(0 <= stars.pan_cc <= 127, "stars.pan_cc must be 0-127")
+        for prefix in ("small", "big"):
+            low = getattr(stars, f"{prefix}_low_note")
+            high = getattr(stars, f"{prefix}_high_note")
+            check(0 <= low <= 127, f"stars.{prefix}_low_note must be 0-127")
+            check(0 <= high <= 127, f"stars.{prefix}_high_note must be 0-127")
+            check(high > low, f"stars.{prefix}_high_note must be above {prefix}_low_note")
+            check(
+                getattr(stars, f"{prefix}_duration_beats") > 0,
+                f"stars.{prefix}_duration_beats must be positive",
+            )
+            check(
+                0 <= getattr(stars, f"{prefix}_channel") <= 15,
+                f"stars.{prefix}_channel must be 0-15",
+            )
+        check(
+            len({stars.small_channel, stars.big_channel, stars.chord_channel}) == 3,
+            "star layers and chords must use three different MIDI channels",
+        )
 
-        # Validate tolerance
-        if self.images.blur < 0:
-            errors.append(f"value cannot be negative")
-        if self.images.saturation_boost < 0:
-            errors.append(f"value cannot be negative")
-        if not self.images.tolerance > 0:
-            errors.append(f"value cannot be negative")
+        transport = self.transport
+        check(
+            transport.grid_subdivision >= 1,
+            "transport.grid_subdivision must be at least 1",
+        )
+        check(
+            0 <= transport.quantise_strength <= 1,
+            "transport.quantise_strength must be between 0 and 1",
+        )
+        check(
+            transport.count_in_beats >= 0,
+            "transport.count_in_beats cannot be negative",
+        )
+        check(
+            transport.notes_per_slice >= 0,
+            "transport.notes_per_slice cannot be negative",
+        )
+        check(
+            transport.star_duration_scale > 0,
+            "transport.star_duration_scale must be positive",
+        )
 
-        # Validate beats
-        if self.instrument.bass_speed_beats <= 0:
-            errors.append(f"bass_speed_beats must be positive")
-        if self.instrument.bass_max_note_duration_beats <= 0:
-            errors.append(f"bass_max_note_duration_beats must be positive")
-        if self.instrument.stars_speed_beats <= 0:
-            errors.append(f"stars_speed_beats must be positive")
-        if self.instrument.stars_distance_scale <= 0:
-            errors.append("stars_distance_scale must be positive")
-        if self.instrument.stars_min_duration_beats <= 0:
-            errors.append("stars_min_duration_beats must be positive")
-        if self.instrument.stars_max_duration_beats < self.instrument.stars_min_duration_beats:
-            errors.append("stars_max_duration_beats must be >= stars_min_duration_beats")
-        for name, channel in (
-            ("stars_small_midi_channel", self.instrument.stars_small_midi_channel),
-            ("stars_big_midi_channel", self.instrument.stars_big_midi_channel),
-        ):
-            if not 0 <= channel <= 15:
-                errors.append(f"{name} must be between 0 and 15")
-        if self.instrument.stars_small_midi_channel == self.instrument.stars_big_midi_channel:
-            errors.append("star MIDI channels must be different")
+        check(self.tempo.bpm > 0, "tempo.bpm must be positive")
+        check(self.tempo.subdivision > 0, "tempo.subdivision must be positive")
 
-        if self.harmony.nebula_total_duration_beats <= 0:
-            errors.append(f"nebula_total_duration_beats must be positive")
+        instrument = self.instrument
+        check(
+            instrument.stars_min_duration_beats > 0,
+            "stars_min_duration_beats must be positive",
+        )
+        check(
+            instrument.stars_max_duration_beats >= instrument.stars_min_duration_beats,
+            "stars_max_duration_beats must be >= stars_min_duration_beats",
+        )
+        for name in ("stars_small_midi_channel", "stars_big_midi_channel"):
+            check(0 <= getattr(instrument, name) <= 15, f"{name} must be 0-15")
+        check(
+            instrument.stars_small_midi_channel != instrument.stars_big_midi_channel,
+            "star MIDI channels must be different",
+        )
 
-        # Octave offset is an integer shift relative to C2.
-        if not isinstance(self.harmony.octave_offset, int):
-            errors.append(f"octave_offset must be an integer")
+        check(
+            self.harmony.nebula_total_duration_beats > 0,
+            "nebula_total_duration_beats must be positive",
+        )
 
         if errors:
             raise ValueError(
                 "Configuration errors:\n" + "\n".join(f"  - {e}" for e in errors)
             )
 
-        return True
-    
-class ConfigLoader:
-    
 
+def _build(section_type: type[T], data: dict[str, Any]) -> tuple[T, list[str]]:
+    """Instantiate a config dataclass from a dict, reporting unknown keys."""
+
+    known = {field.name for field in fields(section_type)}
+    accepted = {key: value for key, value in (data or {}).items() if key in known}
+    unknown = [key for key in (data or {}) if key not in known]
+    return section_type(**accepted), unknown
+
+
+class ConfigLoader:
     @staticmethod
     def load(config_path: str) -> Config:
-        
-        print("Config Loader")
         config = Config.from_json(config_path)
-        if not config.validate():
-            print("Validaton failed")
-        else:
-            print("Validaton passed")
-        print(config.to_dict())
+        config.validate()
+        print(f"[Config] loaded and validated: {config_path}")
         return config

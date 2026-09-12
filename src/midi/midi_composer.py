@@ -12,7 +12,8 @@ class MidiFactory:
         return notes[note % 12]
 
     def brightness_to_mode(self, color: Color) -> ChordType:
-        if color.brightness > 50:
+        # Color.brightness is now normalised 0-1 like every other colour field.
+        if color.brightness > 0.5:
             return ChordType.MAJOR
         else:
             return ChordType.MINOR
@@ -21,7 +22,8 @@ class MidiFactory:
         """
         Return a value between 0 - 11, corresponding to each note from C - B
         """
-        return round(color.hue / 30) % 12
+        # Color.hue is 0-1 around the wheel, so 12 steps span an octave.
+        return round(color.hue * 12) % 12
 
     def nebula_chord_composer(self):
 
