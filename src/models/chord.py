@@ -50,15 +50,27 @@ class Chord:
         return note in self.notes
 
     def chord_maker(self) -> list[int]:
-        """Build chord tones from the configured chord type."""
+        """Build chord tones from the configured chord type and inversion.
+
+        An inversion lifts the lowest notes an octave: the first inversion of
+        C-E-G is E-G-C. Same chord, same harmonic function, different shape
+        and a different bass note — which is what makes a repeated chord sound
+        like a move rather than a stall.
+        """
 
         if self.notes:
             return list(self.notes)
         intervals = getattr(self.chord_type, "value", (0, 4, 7))
-        notes = tuple(self.root + interval for interval in intervals)
-        if any(note > 127 for note in notes):
+        notes = [self.root + interval for interval in intervals]
+
+        if self.inversion:
+            for position in range(self.inversion % len(notes)):
+                notes[position] += 12
+            notes.sort()
+
+        if any(note > 127 or note < 0 for note in notes):
             raise ValueError("Chord tones exceed MIDI note range")
-        return list(notes)
+        return notes
 
     def transposed(self, semitones: int) -> "Chord":
         """Return a copy transposed by the requested number of semitones."""
