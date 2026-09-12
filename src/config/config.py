@@ -218,7 +218,23 @@ class TempoConfig:
 
 @dataclass
 class HarmonyConfig:
+    """Harmony.
+
+    nebula_total_duration_beats  phrase length given to each nebula
+    chord_low_note               bottom of the chord bed, as a MIDI note.
+                                 48 is C3
+    chord_high_note              top of the bed. 72 is C5
+    octave_offset                whole-octave shift applied after placement
+
+    The bed exists because a chord root arrives as a pitch class, 0 to 11.
+    Used directly as a MIDI note that is the octave below the lowest note on
+    a piano — between 8 and 23 Hz, which is felt rather than heard. Every
+    chord has to be lifted into a register that speaks.
+    """
+
     nebula_total_duration_beats: float = 64.0
+    chord_low_note: int = 48
+    chord_high_note: int = 72
     octave_offset: int = 0
 
 
@@ -395,6 +411,19 @@ class Config:
         check(
             self.harmony.nebula_total_duration_beats > 0,
             "nebula_total_duration_beats must be positive",
+        )
+        check(
+            0 <= self.harmony.chord_low_note <= 127,
+            "harmony.chord_low_note must be 0-127",
+        )
+        check(
+            0 <= self.harmony.chord_high_note <= 127,
+            "harmony.chord_high_note must be 0-127",
+        )
+        check(
+            self.harmony.chord_high_note - self.harmony.chord_low_note >= 12,
+            "the chord bed needs at least one octave between "
+            "chord_low_note and chord_high_note",
         )
 
         if errors:
