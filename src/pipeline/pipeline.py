@@ -100,6 +100,8 @@ class ImageToMidi:
             fit_stars_to_chord=transport_config.fit_stars_to_chord,
             notes_per_slice=transport_config.notes_per_slice,
             duration_scale=transport_config.star_duration_scale,
+            min_spacing=transport_config.min_note_spacing_beats,
+            spacing_variation=transport_config.spacing_variation_beats,
         )
         timeline = builder.build(
             self.spans,
