@@ -12,3 +12,8 @@ remembering, moved out of the live packages so that `src/detection`,
   in `mapping/`.
 - `setup_image.py`, `setup_player.py` — never importable: undefined names and
   an import path that does not resolve.
+- `cloud_detector.py`, `cloud_utils.py` — the first nebula detector, with
+  fixed thresholds on raw luminance. It called 29% to 99.9% of a frame one
+  nebula. Superseded by the band-pass in `detection/nebula_detector.py`.
+  `cloud_utils._get_filter_curve` lives on, reimplemented and vectorised, as
+  `NebulaDetector._filter_curve`.
