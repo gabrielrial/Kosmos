@@ -430,14 +430,27 @@ class ChordRegisterTest(unittest.TestCase):
         second = factory._place([Chord(root=11, chord_type=ChordType.MAJOR)])
         self.assertEqual(abs(second[0].root - first[0].root), 1)
 
-    def test_a_progression_never_leaps_more_than_a_tritone(self):
+    def test_a_change_of_chord_never_leaps_more_than_a_tritone(self):
+        """Voice leading is judged on changes of chord.
+
+        A repeat is excluded because rotating through inversions moves the
+        bass on purpose, and the last rotation drops back to root position.
+        That movement is the feature; what must stay close is the step from
+        one chord to a different one.
+        """
+
         import random
 
         roots = [random.Random(4).randrange(12) for _ in range(40)]
         _, placed = self.factory(roots)
-        for earlier, later in zip(placed, placed[1:]):
+        changes = [
+            (earlier, later)
+            for earlier, later in zip(placed, placed[1:])
+            if earlier.root % 12 != later.root % 12
+        ]
+        for earlier, later in changes:
             self.assertLessEqual(
-                abs(later.root - earlier.root),
+                abs(min(later.chord_maker()) - min(earlier.chord_maker())),
                 6,
                 "voice leading should always find a closer octave",
             )
@@ -452,3 +465,65 @@ class ChordRegisterTest(unittest.TestCase):
         _, placed = self.factory([0, 6, 11], low=110, high=127, octave_offset=2)
         for chord in placed:
             self.assertTrue(0 <= chord.root <= 127)
+
+
+class ChordInversionTest(unittest.TestCase):
+    """A chord repeating itself unchanged is a stall, not a progression."""
+
+    def place(self, roots, types=None, low=48, high=72):
+        from midi.midi_nebulas import NebulasMidiFactory
+
+        types = types or [ChordType.MAJOR] * len(roots)
+        factory = NebulasMidiFactory([], [], low_note=low, high_note=high)
+        chords = [
+            Chord(root=root, chord_type=kind) for root, kind in zip(roots, types)
+        ]
+        return factory._place(chords)
+
+    def test_chord_tones_follow_the_inversion(self):
+        base = Chord(root=60, chord_type=ChordType.MAJOR).chord_maker()
+        first = Chord(root=60, chord_type=ChordType.MAJOR, inversion=1).chord_maker()
+        second = Chord(root=60, chord_type=ChordType.MAJOR, inversion=2).chord_maker()
+        self.assertEqual(base, [60, 64, 67])
+        self.assertEqual(first, [64, 67, 72])
+        self.assertEqual(second, [67, 72, 76])
+
+    def test_inversion_keeps_the_same_pitch_classes(self):
+        """Same harmony, different shape — that is the whole point."""
+
+        plain = Chord(root=60, chord_type=ChordType.MINOR).chord_maker()
+        turned = Chord(root=60, chord_type=ChordType.MINOR, inversion=2).chord_maker()
+        self.assertEqual({n % 12 for n in plain}, {n % 12 for n in turned})
+
+    def test_inversion_wraps_round(self):
+        triad = Chord(root=60, chord_type=ChordType.MAJOR, inversion=3).chord_maker()
+        self.assertEqual(triad, Chord(root=60, chord_type=ChordType.MAJOR).chord_maker())
+
+    def test_a_repeated_chord_gets_a_new_inversion(self):
+        placed = self.place([0, 0, 0])
+        self.assertEqual([chord.inversion for chord in placed], [0, 1, 2])
+        shapes = [tuple(chord.chord_maker()) for chord in placed]
+        self.assertEqual(len(set(shapes)), 3, "three repeats, three shapes")
+
+    def test_a_different_chord_resets_to_root_position(self):
+        placed = self.place([0, 0, 5])
+        self.assertEqual(placed[-1].inversion, 0)
+
+    def test_same_root_but_different_quality_is_not_a_repeat(self):
+        placed = self.place([0, 0], [ChordType.MAJOR, ChordType.MINOR])
+        self.assertEqual(placed[1].inversion, 0)
+
+    def test_inversions_never_push_past_the_ceiling(self):
+        """Raising a note an octave must not escape the configured bed."""
+
+        placed = self.place([0] * 6, low=48, high=72)
+        for chord in placed:
+            for note in chord.chord_maker():
+                self.assertLessEqual(note, 72)
+                self.assertGreaterEqual(note, 48)
+
+    def test_no_two_consecutive_chords_sound_identical(self):
+        placed = self.place([0, 0, 0, 0, 7, 7, 7])
+        shapes = [tuple(chord.chord_maker()) for chord in placed]
+        for earlier, later in zip(shapes, shapes[1:]):
+            self.assertNotEqual(earlier, later)

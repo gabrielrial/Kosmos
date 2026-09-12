@@ -189,6 +189,12 @@ class NebulasMidiFactory:
         placed: list[Chord] = []
 
         for chord in chords:
+            repeated = (
+                placed
+                and placed[-1].root % 12 == chord.root % 12
+                and placed[-1].chord_type == chord.chord_type
+            )
+
             pitch_class = chord.root % 12
             candidates = [
                 note
@@ -208,8 +214,34 @@ class NebulasMidiFactory:
 
             shifted = root + self.octave_offset * 12
             root = max(0, min(shifted, 127))
+            # A chord repeating itself is a stall: same notes, same bass,
+            # nothing moves. Rotating to the next inversion keeps the harmony
+            # and changes the shape and the bass note, so the repeat reads as
+            # a move instead.
+            # Cycle through the chord's inversions rather than counting up
+            # forever: past the last one the shape returns to root position,
+            # and an unbounded counter makes that wrap invisible here.
+            positions = len(getattr(chord.chord_type, "value", (0, 4, 7)))
+            inversion = ((placed[-1].inversion + 1) % positions) if repeated else 0
+            candidate = Chord(
+                root=root, chord_type=chord.chord_type, inversion=inversion
+            )
+
+            # An inversion raises notes by an octave, which can push the top
+            # of the chord past the bed. Drop the whole chord an octave when
+            # that happens, if there is room below: the inversion is kept, the
+            # register is not overshot.
+            if inversion and max(candidate.chord_maker()) > self.high_note:
+                if root - 12 >= self.low_note:
+                    root -= 12
+                    candidate = Chord(
+                        root=root, chord_type=chord.chord_type, inversion=inversion
+                    )
+                else:
+                    candidate = Chord(root=root, chord_type=chord.chord_type)
+
             self._previous_root = root
-            placed.append(Chord(root=root, chord_type=chord.chord_type))
+            placed.append(candidate)
 
         return placed
 
