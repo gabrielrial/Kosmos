@@ -568,3 +568,72 @@ class MinimumChordDurationTest(unittest.TestCase):
 
         for span in chord_spans([nebula]):
             self.assertGreaterEqual(span.end_beat - span.start_beat, 4.0)
+
+
+class ChordReportTest(unittest.TestCase):
+    """The report has to describe what actually plays."""
+
+    def build(self, directory):
+        from midi.midi_nebulas import NebulasMidiFactory
+        from models.color import Color
+        from models.nebula import Nebula
+
+        nebula = Nebula(
+            x=100, y=200, width=50, height=50, area=2500, area_frac=0.05,
+            density=0.8, elongation=1.0, brightness=0.6, hue=0.1,
+            saturation=0.5, contrast=20.0,
+            dominant_colors=[
+                Color(hue=h, saturation=0.5, brightness=b, weight=w)
+                for h, b, w in ((0.0, 0.7, 0.4), (0.25, 0.3, 0.3), (0.0, 0.7, 0.3))
+            ],
+        )
+        factory = NebulasMidiFactory(
+            [], [nebula], total_duration_beats=64.0, low_note=48, high_note=72,
+            min_chord_beats=4.0, output_dir=str(directory),
+        )
+        factory.process()
+        return (directory / "nebula_chords.txt").read_text()
+
+    def test_report_is_written_to_the_output_directory(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name) / "nested"
+            text = self.build(directory)
+            self.assertTrue((directory / "nebula_chords.txt").is_file())
+            self.assertIn("KOSMOS", text)
+
+    def test_every_played_chord_lists_its_midi_numbers(self):
+        import re
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as name:
+            text = self.build(Path(name))
+
+        played = [line for line in text.splitlines() if "beat " in line]
+        self.assertTrue(played, "the report should list the chords as played")
+        for line in played:
+            numbers = [int(n) for n in re.findall(r"\((\d+)\)", line)]
+            self.assertGreaterEqual(len(numbers), 3, f"no note numbers in: {line}")
+            for note in numbers:
+                self.assertTrue(
+                    48 <= note <= 72,
+                    f"{note} is outside the configured bed, in: {line}",
+                )
+
+    def test_report_names_the_inversion(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as name:
+            text = self.build(Path(name))
+        self.assertIn("root", text)
+
+    def test_report_distinguishes_nebula_chords_from_passing_ones(self):
+        """Marking used to compare object identity, so everything read as
+        passing once the chords were rebuilt during placement."""
+
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as name:
+            text = self.build(Path(name))
+        self.assertIn("[nebula ]", text)

@@ -26,6 +26,7 @@ class NebulasMidiFactory:
         high_note: int = 72,
         octave_offset: int = 0,
         min_chord_beats: float = 0.0,
+        output_dir: str = ".",
     ):
         self.nebulas: list[Nebula] = nebulas
         self.midi_factory = MidiFactory()
@@ -37,10 +38,12 @@ class NebulasMidiFactory:
         self.high_note = high_note
         self.octave_offset = octave_offset
         self.min_chord_beats = min_chord_beats
+        self.output_dir = output_dir
         # Voice leading carries across nebulae: the boundary between two of
         # them is a chord change like any other, and resetting here would put
         # an octave leap at every seam.
         self._previous_root: int | None = None
+        self._passing: dict[int, list[bool]] = {}
 
     def process(self):
         report: list[str] = []
@@ -90,31 +93,36 @@ class NebulasMidiFactory:
         midi_nebula: NebulaMidi,
     ) -> str:
         lines = [
-            f"Nebula at ({nebula.x}, {nebula.y})",
-            f"Original nebula chords ({len(original_chords)}):",
+            f"Nebula at ({nebula.x}, {nebula.y})  "
+            f"{nebula.area_frac * 100:.2f}% of frame",
+            f"  From {len(original_chords)} dominant colours "
+            f"(pitch classes, before placement):",
         ]
         for index, (chord, duration) in enumerate(
             zip(original_chords, original_durations), start=1
         ):
+            name = self.midi_factory.note_to_name(chord.root)
+            quality = getattr(chord.chord_type, "name", "?")
             lines.append(
-                f"  {index}. {self._format_chord(chord)} | "
-                f"duration={duration:.2f} beats"
+                f"    {index}. {name:2} {quality:6} "
+                f"({duration:.2f} beats from colour weight)"
             )
 
-        lines.append("Progression with passing chords:")
+        lines.append("")
+        lines.append("Progression as played:")
+        flags = self._passing.get(id(midi_nebula), [])
+        start = 0.0
         for index, (chord, duration) in enumerate(
             zip(midi_nebula.chords, midi_nebula.duration), start=1
         ):
-            kind = (
-                "nebula"
-                if any(chord is original for original in original_chords)
-                else "passing"
-            )
+            is_passing = flags[index - 1] if index - 1 < len(flags) else False
+            kind = "passing" if is_passing else "nebula "
             lines.append(
-                f"  {index}. [{kind}] {self._format_chord(chord)} | "
-                f"duration={duration:.2f} beats"
+                f"  {index:2}. [{kind}] beat {start:7.2f} -> {start + duration:7.2f} "
+                f"({duration:5.2f})  {self._format_chord(chord)}"
             )
-        lines.append(f"  Total duration: {sum(midi_nebula.duration):.2f} beats")
+            start += duration
+        lines.append(f"  Total: {sum(midi_nebula.duration):.2f} beats")
         return "\n".join(lines)
 
     def _format_chord(self, chord: Chord) -> str:
@@ -129,23 +137,57 @@ class NebulasMidiFactory:
         try:
             notes = chord.chord_maker()
         except AttributeError:
-            notes = getattr(chord, "notes", ())
-        return f"{root_name} {type_name} notes={list(notes)}"
+            notes = list(getattr(chord, "notes", ()))
+
+        inversion = getattr(chord, "inversion", 0)
+        shape = ("root", "1st inv", "2nd inv", "3rd inv")
+        position = shape[inversion] if inversion < len(shape) else f"inv {inversion}"
+
+        # Note names alongside the numbers: the numbers are what MIDI carries,
+        # the names are what you check against an instrument.
+        spelled = " ".join(
+            f"{self.midi_factory.note_to_name(note)}{note // 12 - 2}({note})"
+            for note in notes
+        )
+        return f"{root_name:2} {type_name:6} {position:7}  {spelled}"
 
     def _write_report(self, reports: list[str]) -> None:
-        Path("nebula_chords.txt").write_text(
-            "KOSMOS - Nebula chord report\n\n"
+        path = Path(self.output_dir) / "nebula_chords.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        header = (
+            "KOSMOS - chord report\n"
+            "\n"
+            "Every chord that sounds, in order, with its MIDI note numbers.\n"
+            "Note names use the convention where middle C (MIDI 60) is C3,\n"
+            "the same as Ableton Live.\n"
+            "\n"
+            "  nebula   a chord derived from one of the region's colours\n"
+            "  passing  inserted to connect two chords that cannot follow\n"
+            "           each other directly\n"
+            "\n"
+            "The 'as played' list is what reaches the MIDI port: chords are\n"
+            "raised into the audible register and a repeat is rotated to the\n"
+            "next inversion, so the numbers here differ from the raw chords\n"
+            "above them.\n"
+        )
+        path.write_text(
+            header
+            + "\n"
             + "\n\n".join(reports)
-            + ("\n" if reports else "No nebulas detected.\n"),
+            + ("\n" if reports else "\nNo nebulas detected.\n"),
             encoding="utf-8",
         )
-        print("[OK] Chord report saved: nebula_chords.txt")
+        print(f"[OK] Chord report saved: {path}")
 
     def _apply_progression(self, nebula: NebulaMidi) -> None:
         if not nebula.chords:
             return
         output_chords = [nebula.chords[0]]
         output_durations = [nebula.duration[0]]
+        # Recorded while building, because afterwards there is no way to tell:
+        # _place() rebuilds every chord, so comparing object identity marks
+        # all of them as passing chords.
+        passing = [False]
         for index in range(1, len(nebula.chords)):
             source = output_chords[-1]
             destination = nebula.chords[index]
@@ -159,15 +201,18 @@ class NebulasMidiFactory:
             output_durations[-1] = available - transition_total
             for intermediate in intermediates:
                 output_chords.append(intermediate)
+                passing.append(True)
                 output_durations.append(
                     transition_total / len(intermediates)
                     if intermediates
                     else 0.0
                 )
             output_chords.append(destination)
+            passing.append(False)
             output_durations.append(nebula.duration[index])
         nebula.chords = self._place(output_chords)
         nebula.duration = self._enforce_minimum(output_durations)
+        self._passing[id(nebula)] = passing
         nebula.notes = [chord.root for chord in nebula.chords]
         nebula.mode = [chord.chord_type for chord in nebula.chords]
 
