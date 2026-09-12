@@ -1,250 +1,231 @@
-"""
-Main pipeline: Converts images to MIDI music.
+"""Image to MIDI.
 
-Orchestrates the entire workflow:
-1. Load configuration
-2. Process image
-3. Detect stars
-4. Analyze colors
-5. Generate MIDI
+The stages are kept separate on purpose:
+
+    analyse()   file -> measurements          no MIDI, no musical decisions
+    compose()   measurements -> note events   pure, testable, no ports
+    play()      note events -> MIDI           dumb, just sends bytes
+
+``analyse`` is what the calibration tool in ``tools/survey.py`` calls, which
+is why detection can be measured without opening a MIDI port.
 """
 
-from typing import Tuple, List, Optional
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Optional
 
 from config.config import ConfigLoader
-from quantizer.quantizer import Quantizer
-from setup.midi import MidiSetup
-from image.img_pipeline import ImagePipeLine
-from midi.device import MidiDevice
-from models.tempo import Tempo
-from models.images import Images
-from detection.star_detector import StarDetector
 from detection.nebula_detector import NebulaDetector
-from music.orchestrator import MusicOrchestrator, StarEvent
-from music.star_mapper import StarNoteMapper
-from models.star import Stars
-from models.nebula import Nebulas
-from midi.clock import MidiClockGenerator
-from midi.star_player import StarMidiPlayer
+from detection.star_detector import StarDetector
+from image.img_pipeline import ImagePipeLine
+from mapping.star_mapper import LayerSpec, NoteEvent, StarMapper
+from mapping.timeline import TimelineBuilder, chord_spans
 from midi.midi_creator import MidiSheet
-from midi.realtime_player import (
-    NebulaChordRealtimeMidiPlayer,
-    NebulaRealtimeMidiPlayer,
-    StarRealtimeMidiPlayer,
-)
 from midi.midi_nebulas import NebulasMidiFactory
-from models.nebula import NebulaMidi
+from midi.transport import MidiClock, Sequencer, TimedEvent, Transport, panic
+from models.images import Images
+from models.nebula import Nebula, NebulaMidi
+from models.star import Stars
+from setup.midi import MidiSetup
+
 
 class ImageToMidi:
-
     def __init__(
         self, config_path: str, image_path: str, output_dir: Optional[str] = None
-    ):
-
-        # Load configuration and validate
+    ) -> None:
         self.config = ConfigLoader.load(config_path)
-
-        # Paths
         self.image_path = image_path
-        self.output_path = output_dir
+        self.output_dir = output_dir or "."
 
-        # Components (initialized during process())
-        self.device: MidiDevice
-        self.outport = None
-        self.ports = (
-            {}
-        )  # Dictionary with 3 ports: kosmos_stars, kosmos_bass, kosmos_clock
-
-        ## Images
-
-        self.images: Images | None
-        #
-        ## Players
-        self.midi: MidiSetup
-        self.small_star_player: StarMidiPlayer | None
-        self.big_star_player: StarMidiPlayer | None
-        # self.bass_player: ColorBassPlayer | None
-        #
-        ## Data
+        self.images: Images | None = None
         self.stars: Stars = Stars()
-        self.nebulosas: list[NebulaMidi] = []
-        # self.dominant_colors: List = []
-        #
-        ## Status
-        # self._processed = False
-        # self._started = False
+        self.nebulas: list[Nebula] = []
+        self.nebulas_midi: list[NebulaMidi] = []
+        self.spans: list = []
+        self.timeline: list[TimedEvent] = []
 
-        self.midi_track = MidiSheet()
-
-        print(f"[Pipeline] Initialized")
-        print(f"  Config: {config_path}")
-        print(f"  Imagen: {image_path}")
-        print(f"  Output: {output_dir}")
-        print()
-
-    def process(self):
-
-        #
-        self.midi = MidiSetup(self.config).init()
+    # ------------------------------------------------------------------
+    def analyse(self) -> tuple[Images, Stars, list[Nebula]]:
+        """Everything that reads the image. No MIDI is touched here."""
 
         self.images = ImagePipeLine(self.image_path, self.config.images).process()
-        StarDetector(self.images, self.stars, self.config.star_detector).detect()
-        nebulas = NebulaDetector(
-            self.images, self.stars, self.config.star_detector
+        self.stars = StarDetector(
+            self.images, self.config.star_detector, self.output_dir
         ).detect()
-        quantizer = Quantizer(self.stars, self.midi.tempo, self.images.width)
-        neb_midi = NebulasMidiFactory(
-            self.nebulosas,
-            nebulas,
+        self.nebulas = NebulaDetector(
+            self.images, self.config.nebula_detector, self.output_dir
+        ).detect()
+        return self.images, self.stars, self.nebulas
+
+    def compose(self) -> list[TimedEvent]:
+        """Measurements to one ordered timeline. Pure: no ports, no threads."""
+
+        self.nebulas_midi = NebulasMidiFactory(
+            [],
+            self.nebulas,
             total_duration_beats=self.config.harmony.nebula_total_duration_beats,
         ).process()
+
+        stars_config = self.config.stars
+        transport_config = self.config.transport
+
+        mapper = StarMapper(
+            small=LayerSpec(
+                low_note=stars_config.small_low_note,
+                high_note=stars_config.small_high_note,
+                duration_beats=stars_config.small_duration_beats,
+                channel=stars_config.small_channel,
+                pan_cc=stars_config.pan_cc,
+            ),
+            big=LayerSpec(
+                low_note=stars_config.big_low_note,
+                high_note=stars_config.big_high_note,
+                duration_beats=stars_config.big_duration_beats,
+                channel=stars_config.big_channel,
+                pan_cc=stars_config.pan_cc,
+            ),
+        )
+        small, big = mapper.map(self.stars, self.images.width)
+
+        self.spans = chord_spans(self.nebulas_midi, channel=stars_config.chord_channel)
+        builder = TimelineBuilder(
+            total_beats=self.config.harmony.nebula_total_duration_beats,
+            grid=1.0 / transport_config.grid_subdivision,
+            quantise_strength=transport_config.quantise_strength,
+            fit_stars_to_chord=transport_config.fit_stars_to_chord,
+            notes_per_slice=transport_config.notes_per_slice,
+            duration_scale=transport_config.star_duration_scale,
+        )
+        timeline = builder.build(
+            self.spans,
+            [
+                ("small", small, stars_config.small_low_note, stars_config.small_high_note),
+                ("big", big, stars_config.big_low_note, stars_config.big_high_note),
+            ],
+            image_height=self.images.height,
+        )
+
+        offset = transport_config.count_in_beats
+        if offset:
+            for event in timeline:
+                event.beat += offset
+
+        self.timeline = timeline
+        length = timeline[-1].beat if timeline else 0.0
+        checks = TimelineBuilder.check(timeline)
+        kept = sum(1 for event in timeline if event.label == "star_on")
         print(
-            f"[Harmony] Built {sum(len(nebula.chords) for nebula in neb_midi)} chords "
-            f"across {len(neb_midi)} nebulas"
-        )
-        self._fit_stars_to_harmony(neb_midi)
-        self._setup_midi()
-        nebulas_player = NebulaChordRealtimeMidiPlayer(
-            neb_midi,
-            self.midi.midi_devices.get_port("kosmos_nebula"),
-            self.config.tempo.bpm,
-        )
-        self.realtime_players = (
-            self.small_star_player,
-            self.big_star_player,
-            nebulas_player,
-        )
-        print("[MIDI] Starting stars and nebulas simultaneously")
-        for player in self.realtime_players:
-            player.start()
-        try:
-            for player in self.realtime_players:
-                player.join()
-        except KeyboardInterrupt:
-            print("[MIDI] Stopping stars and nebulas")
-            for player in self.realtime_players:
-                player.stop()
-            for player in self.realtime_players:
-                player.join()
-
-
-
-        #orchestrator = MusicOrchestrator(
-        #    tempo_bpm=self.config.tempo.bpm,
-        #    nebula_total_duration_beats=self.config.harmony.nebula_total_duration_beats,
-        #    subdivision=self.config.tempo.subdivision,
-        #    octave_offset=self.config.harmony.octave_offset,
-        #)
-        #result = orchestrator.orchestrate(
-        #    nebulas=nebulas,
-        #    stars_obj=self.stars,
-        #    images=self.images,
-        #    quant=quantizer,
-        #)
-        """
-        timeline = result["timeline"]
-        mapped = result["mapped_star_notes"]
-        loop_beats = max(
-            (item.end_beat for item in timeline),
-            default=self.config.harmony.nebula_total_duration_beats,
+            f"[Compose] {len(self.spans)} chord spans; "
+            f"{len(small) + len(big)} star notes mapped, {kept} kept, "
+            f"{builder.dropped} thinned out "
+            f"(max {transport_config.notes_per_slice or 'unlimited'} per "
+            f"1/{transport_config.grid_subdivision} beat)"
         )
         print(
-            f"[ORCHESTRATOR] Generated timeline items: {len(timeline)}, "
-            f"mapped star notes: {len(mapped)}"
+            f"[Compose] timeline: {len(timeline)} events over {length:.1f} beats "
+            f"({length * 60.0 / self.config.tempo.bpm:.0f}s at {self.config.tempo.bpm} BPM)"
         )
-        for i, item in enumerate(timeline[:10]):
-            root = getattr(item.chord, "note", getattr(item.chord, "root", None))
+        if checks["hanging_notes"] or checks["unmatched_note_offs"]:
+            raise RuntimeError(f"timeline is not balanced: {checks}")
+        print("[Compose] every note_on has a matching note_off")
+        return timeline
+
+    def play(self, timeline: list[TimedEvent]) -> None:
+        midi = MidiSetup(self.config).init()
+        stars_port = midi.midi_devices.get_port("kosmos_stars")
+        nebula_port = midi.midi_devices.get_port("kosmos_nebula")
+        clock_port = midi.midi_devices.get_port("kosmos_clock")
+        if stars_port is None or nebula_port is None or clock_port is None:
+            raise RuntimeError("MIDI ports are not available")
+
+        transport = Transport(self.config.tempo.bpm)
+        chord_channel = self.config.stars.chord_channel
+
+        # One port per layer, chosen by the channel the event carries.
+        def route(event: TimedEvent):
+            message = event.message
+            if message is None:
+                return stars_port
+            channel = getattr(message, "channel", 0)
+            return nebula_port if channel == chord_channel else stars_port
+
+        class RoutedPort:
+            def send(self, message):
+                port = (
+                    nebula_port
+                    if getattr(message, "channel", 0) == chord_channel
+                    else stars_port
+                )
+                port.send(message)
+
+        sequencer = Sequencer(timeline, RoutedPort(), transport)
+        clock = (
+            MidiClock(
+                clock_port,
+                transport,
+                send_song_position=self.config.transport.send_song_position,
+            )
+            if self.config.transport.send_clock
+            else None
+        )
+
+        print(
+            f"[MIDI] starting at {self.config.tempo.bpm} BPM"
+            + (" with MIDI clock on kosmos_clock" if clock else " (clock disabled)")
+        )
+        if clock:
             print(
-                f"  T{i}: {item.start_beat:.2f} -> "
-                f"{item.end_beat:.2f} root={root}"
+                "[MIDI] in Ableton Live: Preferences > Link/Tempo/MIDI, set Sync On "
+                "for kosmos_clock, then put the transport in EXT"
             )
 
-        stars_player = StarRealtimeMidiPlayer(
-            mapped,
-            self.midi.outport["kosmos_stars"],
-            self.config.tempo.bpm,
-            loop_beats,
-        )
-        nebulas_player = NebulaRealtimeMidiPlayer(
-            timeline,
-            self.midi.outport["kosmos_bass"],
-            self.config.tempo.bpm,
-            loop_beats,
-        )
-        self.realtime_players = (stars_player, nebulas_player)
-        print("[MIDI] Starting stars and nebulas in separate real-time threads")
-        stars_player.start()
-        nebulas_player.start()
+        transport.start()
         try:
-            stars_player.join()
-            nebulas_player.join()
+            if clock:
+                clock.start()
+            sequencer.start()
+            sequencer.join()
         except KeyboardInterrupt:
-            print("[MIDI] Stopping real-time playback")
-            for player in self.realtime_players:
-                player.stop()
-            for player in self.realtime_players:
-                player.join()
+            print("\n[MIDI] stopping")
+        finally:
+            sequencer.stop()
+            if clock:
+                clock.stop()
+                clock.join(timeout=1.0)
+            sequencer.join(timeout=1.0)
+            panic(stars_port)
+            panic(nebula_port)
+            if clock:
+                print(f"[MIDI] {clock.pulses_sent} clock pulses sent")
+            if sequencer.late_events:
+                print(
+                    f"[MIDI] {sequencer.late_events} events ran late, "
+                    f"worst {sequencer.worst_lateness_ms:.1f} ms"
+                )
+            else:
+                print("[MIDI] no event ran more than 5 ms late")
+            midi.midi_devices.close()
+            print("[MIDI] ports closed")
 
+    def export(self, timeline: list[TimedEvent], name: str | None = None) -> Path:
+        """Write the timeline to a .mid file.
+
+        Same events as the live performance. A file has no timing error at
+        all, because the DAW's own engine places the notes instead of a
+        Python thread waking up on time.
         """
-        #self.midi.clock.run()
 
-
-
-    def _setup_midi(self):
-        stars_port = self.midi.midi_devices.get_port("kosmos_stars")
-        if stars_port is None:
-            raise RuntimeError("MIDI port 'kosmos_stars' is not available")
-        print("[MIDI] Stars output: kosmos_stars")
-
-        self.small_star_player = StarMidiPlayer(
-            stars=self.stars.small_stars,
-            outport=stars_port,
-            channel_base=self.config.instrument.stars_small_midi_channel,
-            speed_beats=self.config.instrument.stars_speed_beats,
-            distance_scale=self.config.instrument.stars_distance_scale,
-            min_duration_beats=self.config.instrument.stars_min_duration_beats,
-            max_duration_beats=self.config.instrument.stars_max_duration_beats,
-            tempo=self.midi.tempo,
-            shuffle=True,
+        stem = name or Path(self.image_path).stem
+        return MidiSheet(bpm=self.config.tempo.bpm).save(
+            timeline, Path(self.output_dir) / f"{stem}.mid"
         )
 
-        self.big_star_player = StarMidiPlayer(
-            stars=self.stars.big_stars,
-            outport=stars_port,
-            channel_base=self.config.instrument.stars_big_midi_channel,
-            speed_beats=self.config.instrument.stars_speed_beats,
-            distance_scale=self.config.instrument.stars_distance_scale,
-            min_duration_beats=self.config.instrument.stars_min_duration_beats,
-            max_duration_beats=self.config.instrument.stars_max_duration_beats,
-            tempo=self.midi.tempo,
-            shuffle=True,
-        )
+    def process(self, mode: str = "both", midi_name: str | None = None) -> None:
+        self.analyse()
+        timeline = self.compose()
 
-    def _start_playback(self):
-
-        self.small_star_player.start()
-        self.big_star_player.start()
-
-    def _fit_stars_to_harmony(self, nebulas: list[NebulaMidi]) -> None:
-        allowed_pitch_classes = {
-            note % 12
-            for nebula in nebulas
-            for chord in nebula.chords
-            for note in chord.chord_maker()
-        }
-        if not allowed_pitch_classes:
-            return
-
-        for star in self.stars.small_stars + self.stars.big_stars:
-            original_note = star.note
-            allowed_notes = [
-                note for note in range(128) if note % 12 in allowed_pitch_classes
-            ]
-            star.note = min(
-                allowed_notes,
-                key=lambda note: (abs(note - original_note), note),
-            )
-        print(
-            "[Harmony] Star pitch classes: "
-            + ", ".join(str(pitch) for pitch in sorted(allowed_pitch_classes))
-        )
+        if mode in ("file", "both"):
+            self.export(timeline, midi_name)
+        if mode in ("live", "both"):
+            self.play(timeline)
