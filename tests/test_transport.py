@@ -527,3 +527,44 @@ class ChordInversionTest(unittest.TestCase):
         shapes = [tuple(chord.chord_maker()) for chord in placed]
         for earlier, later in zip(shapes, shapes[1:]):
             self.assertNotEqual(earlier, later)
+
+
+class MinimumChordDurationTest(unittest.TestCase):
+    """No chord should pass by too quickly to be heard as harmony."""
+
+    def factory(self, minimum=4.0):
+        from midi.midi_nebulas import NebulasMidiFactory
+
+        return NebulasMidiFactory([], [], min_chord_beats=minimum)
+
+    def test_short_durations_are_raised_to_the_floor(self):
+        raised = self.factory(4.0)._enforce_minimum([0.5, 12.0, 1.9, 8.0])
+        self.assertEqual(raised, [4.0, 12.0, 4.0, 8.0])
+
+    def test_durations_already_long_enough_are_untouched(self):
+        original = [8.0, 16.0, 4.0]
+        self.assertEqual(self.factory(4.0)._enforce_minimum(original), original)
+
+    def test_the_phrase_total_gives_way_to_the_minimum(self):
+        """Overrunning the budget is the accepted cost of an audible chord."""
+
+        raised = self.factory(4.0)._enforce_minimum([1.0] * 8)
+        self.assertEqual(sum(raised), 32.0)
+        self.assertGreater(sum(raised), 8.0)
+
+    def test_a_zero_minimum_disables_the_floor(self):
+        original = [0.1, 0.2]
+        self.assertEqual(self.factory(0.0)._enforce_minimum(original), original)
+
+    def test_every_chord_of_a_real_progression_clears_the_floor(self):
+        from mapping.timeline import chord_spans
+        from models.nebula import NebulaMidi
+
+        nebula = NebulaMidi()
+        for root, duration in ((60, 0.5), (65, 20.0), (67, 1.2), (60, 3.0)):
+            nebula.chords.append(Chord(root=root, chord_type=ChordType.MAJOR))
+            nebula.duration.append(duration)
+        nebula.duration = self.factory(4.0)._enforce_minimum(nebula.duration)
+
+        for span in chord_spans([nebula]):
+            self.assertGreaterEqual(span.end_beat - span.start_beat, 4.0)

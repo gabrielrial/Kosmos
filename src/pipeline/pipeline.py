@@ -67,6 +67,7 @@ class ImageToMidi:
             low_note=self.config.harmony.chord_low_note,
             high_note=self.config.harmony.chord_high_note,
             octave_offset=self.config.harmony.octave_offset,
+            min_chord_beats=self.config.harmony.min_chord_beats,
         ).process()
 
         stars_config = self.config.stars

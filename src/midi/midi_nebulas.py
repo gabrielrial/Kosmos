@@ -25,6 +25,7 @@ class NebulasMidiFactory:
         low_note: int = 48,
         high_note: int = 72,
         octave_offset: int = 0,
+        min_chord_beats: float = 0.0,
     ):
         self.nebulas: list[Nebula] = nebulas
         self.midi_factory = MidiFactory()
@@ -35,6 +36,7 @@ class NebulasMidiFactory:
         self.low_note = low_note
         self.high_note = high_note
         self.octave_offset = octave_offset
+        self.min_chord_beats = min_chord_beats
         # Voice leading carries across nebulae: the boundary between two of
         # them is a chord change like any other, and resetting here would put
         # an octave leap at every seam.
@@ -165,9 +167,27 @@ class NebulasMidiFactory:
             output_chords.append(destination)
             output_durations.append(nebula.duration[index])
         nebula.chords = self._place(output_chords)
-        nebula.duration = output_durations
+        nebula.duration = self._enforce_minimum(output_durations)
         nebula.notes = [chord.root for chord in nebula.chords]
         nebula.mode = [chord.chord_type for chord in nebula.chords]
+
+    def _enforce_minimum(self, durations: list[float]) -> list[float]:
+        """Give every chord at least min_chord_beats.
+
+        Two things upstream can leave a chord too short to be heard as
+        harmony: weights are proportional to colour share, so a minor colour
+        gets a sliver of the phrase, and inserting passing chords borrows time
+        from the chord before them, which can take almost all of it.
+
+        The phrase total gives way rather than the minimum — a nebula whose
+        chords need more than its budget simply runs longer. Keeping the total
+        would mean squeezing some other chord below the floor, which is the
+        problem this exists to solve.
+        """
+
+        if self.min_chord_beats <= 0:
+            return durations
+        return [max(duration, self.min_chord_beats) for duration in durations]
 
     def _place(self, chords: list[Chord]) -> list[Chord]:
         """Lift pitch classes into the audible chord bed.

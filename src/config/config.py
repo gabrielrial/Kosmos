@@ -220,7 +220,14 @@ class TempoConfig:
 class HarmonyConfig:
     """Harmony.
 
-    nebula_total_duration_beats  phrase length given to each nebula
+    nebula_total_duration_beats  phrase length given to each nebula. It is
+                                 a target, not a cap: min_chord_beats wins
+                                 when the two disagree
+    min_chord_beats              no chord sounds for less than this. Durations
+                                 come from colour weights and from the time
+                                 borrowed for passing chords, either of which
+                                 can leave a chord too short to register as
+                                 harmony rather than as a blip
     chord_low_note               bottom of the chord bed, as a MIDI note.
                                  48 is C3
     chord_high_note              top of the bed. 72 is C5
@@ -233,6 +240,7 @@ class HarmonyConfig:
     """
 
     nebula_total_duration_beats: float = 64.0
+    min_chord_beats: float = 4.0
     chord_low_note: int = 48
     chord_high_note: int = 72
     octave_offset: int = 0
@@ -411,6 +419,10 @@ class Config:
         check(
             self.harmony.nebula_total_duration_beats > 0,
             "nebula_total_duration_beats must be positive",
+        )
+        check(
+            self.harmony.min_chord_beats > 0,
+            "harmony.min_chord_beats must be positive",
         )
         check(
             0 <= self.harmony.chord_low_note <= 127,

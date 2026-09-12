@@ -60,6 +60,7 @@
   },
   "harmony": {
     "nebula_total_duration_beats": 64,
+    "min_chord_beats": 4.0,
     "chord_low_note": 48,
     "chord_high_note": 72,
     "octave_offset": 0
