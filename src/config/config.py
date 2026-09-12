@@ -189,6 +189,17 @@ class TransportConfig:
                         and therefore no restriction at all
     count_in_beats      silence before the first event, so a DAW locking to
                         the clock has time to catch up
+    min_note_spacing_beats  a layer's notes are pulled apart until at least
+                        this much separates consecutive attacks. Quantising
+                        alone puts everything on the same grid: measured, 645
+                        of 900 gaps came out at exactly 0.25 beats, which is
+                        what makes the texture sound mechanical
+    spacing_variation_beats  extra separation on top of the minimum, scaled by
+                        the star's own flux. A brighter star earns more room
+                        after it. Derived from the image rather than random,
+                        so the same photograph always produces the same
+                        rhythm, and no two stars get the same spacing because
+                        flux is effectively unique per star
     notes_per_slice     how many star notes may start in one grid slice. This
                         is the density control, and it is the one that decides
                         whether the piece sounds like music or like a cloud.
@@ -208,6 +219,8 @@ class TransportConfig:
     count_in_beats: float = 4.0
     notes_per_slice: int = 1
     star_duration_scale: float = 1.0
+    min_note_spacing_beats: float = 0.0
+    spacing_variation_beats: float = 0.0
 
 
 @dataclass
@@ -411,6 +424,14 @@ class Config:
         check(
             transport.star_duration_scale > 0,
             "transport.star_duration_scale must be positive",
+        )
+        check(
+            transport.min_note_spacing_beats >= 0,
+            "transport.min_note_spacing_beats cannot be negative",
+        )
+        check(
+            transport.spacing_variation_beats >= 0,
+            "transport.spacing_variation_beats cannot be negative",
         )
 
         check(self.tempo.bpm > 0, "tempo.bpm must be positive")

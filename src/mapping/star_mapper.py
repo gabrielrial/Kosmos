@@ -30,6 +30,10 @@ class NoteEvent:
     duration: float
     channel: int
     pan_cc: int = 7
+    # 0-1 rank of this star's brightness within its layer. Carried through so
+    # the timeline can vary rhythm from the image rather than from a random
+    # number generator.
+    brightness_rank: float = 0.0
 
 
 @dataclass
@@ -119,6 +123,7 @@ class StarMapper:
                     duration=spec.duration_beats,
                     channel=spec.channel,
                     pan_cc=spec.pan_cc,
+                    brightness_rank=float(rank),
                 )
             )
         return events
