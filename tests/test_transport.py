@@ -374,3 +374,81 @@ class ClockTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class ChordRegisterTest(unittest.TestCase):
+    """Chords must land where they can be heard.
+
+    A root arrives as a pitch class, 0-11. Used directly as a MIDI note that
+    is 8 to 23 Hz — below the range of hearing, so the whole harmonic layer
+    was inaudible while every star was being carefully fitted to it.
+    """
+
+    def factory(self, roots, low=48, high=72, octave_offset=0):
+        from midi.midi_nebulas import NebulasMidiFactory
+        from models.nebula import Nebula
+
+        factory = NebulasMidiFactory(
+            [], [], low_note=low, high_note=high, octave_offset=octave_offset
+        )
+        chords = [Chord(root=root, chord_type=ChordType.MAJOR) for root in roots]
+        return factory, factory._place(chords)
+
+    def test_pitch_classes_are_lifted_into_the_bed(self):
+        _, placed = self.factory([0, 5, 11, 3])
+        for chord in placed:
+            self.assertTrue(
+                48 <= chord.root <= 72,
+                f"root {chord.root} is outside the configured bed",
+            )
+
+    def test_pitch_class_is_preserved(self):
+        """Raising the octave must not change which note it is."""
+
+        roots = [0, 1, 5, 7, 11]
+        _, placed = self.factory(roots)
+        self.assertEqual([chord.root % 12 for chord in placed], roots)
+
+    def test_chords_are_audible(self):
+        """Every tone of every chord above the bottom of hearing."""
+
+        _, placed = self.factory([0, 4, 9])
+        for chord in placed:
+            for note in chord.chord_maker():
+                self.assertGreater(note, 40, "chord tone is still subsonic")
+
+    def test_voice_leading_takes_the_nearest_octave(self):
+        """C then B should fall a semitone, not leap up eleven."""
+
+        _, placed = self.factory([0, 11])
+        self.assertEqual(abs(placed[1].root - placed[0].root), 1)
+
+    def test_voice_leading_continues_across_calls(self):
+        """A nebula boundary is a chord change, not a reason to jump."""
+
+        factory, first = self.factory([0])
+        second = factory._place([Chord(root=11, chord_type=ChordType.MAJOR)])
+        self.assertEqual(abs(second[0].root - first[0].root), 1)
+
+    def test_a_progression_never_leaps_more_than_a_tritone(self):
+        import random
+
+        roots = [random.Random(4).randrange(12) for _ in range(40)]
+        _, placed = self.factory(roots)
+        for earlier, later in zip(placed, placed[1:]):
+            self.assertLessEqual(
+                abs(later.root - earlier.root),
+                6,
+                "voice leading should always find a closer octave",
+            )
+
+    def test_octave_offset_shifts_the_whole_bed(self):
+        _, normal = self.factory([0, 5])
+        _, raised = self.factory([0, 5], octave_offset=1)
+        for plain, shifted in zip(normal, raised):
+            self.assertEqual(shifted.root - plain.root, 12)
+
+    def test_notes_stay_in_midi_range(self):
+        _, placed = self.factory([0, 6, 11], low=110, high=127, octave_offset=2)
+        for chord in placed:
+            self.assertTrue(0 <= chord.root <= 127)

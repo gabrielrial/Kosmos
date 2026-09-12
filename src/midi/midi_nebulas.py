@@ -22,6 +22,9 @@ class NebulasMidiFactory:
         nebulas: list[Nebula],
         total_duration_beats: float = 64.0,
         transition_duration_beats: float = 4.0,
+        low_note: int = 48,
+        high_note: int = 72,
+        octave_offset: int = 0,
     ):
         self.nebulas: list[Nebula] = nebulas
         self.midi_factory = MidiFactory()
@@ -29,6 +32,13 @@ class NebulasMidiFactory:
         self.chord_progression = ChordProgression()
         self.total_duration_beats = total_duration_beats
         self.transition_duration_beats = transition_duration_beats
+        self.low_note = low_note
+        self.high_note = high_note
+        self.octave_offset = octave_offset
+        # Voice leading carries across nebulae: the boundary between two of
+        # them is a chord change like any other, and resetting here would put
+        # an octave leap at every seam.
+        self._previous_root: int | None = None
 
     def process(self):
         report: list[str] = []
@@ -154,10 +164,54 @@ class NebulasMidiFactory:
                 )
             output_chords.append(destination)
             output_durations.append(nebula.duration[index])
-        nebula.chords = output_chords
+        nebula.chords = self._place(output_chords)
         nebula.duration = output_durations
-        nebula.notes = [chord.root for chord in output_chords]
-        nebula.mode = [chord.chord_type for chord in output_chords]
+        nebula.notes = [chord.root for chord in nebula.chords]
+        nebula.mode = [chord.chord_type for chord in nebula.chords]
+
+    def _place(self, chords: list[Chord]) -> list[Chord]:
+        """Lift pitch classes into the audible chord bed.
+
+        A root arrives as a pitch class, 0 to 11, which as a MIDI note sounds
+        below the range of hearing. Each one is raised into the configured
+        register.
+
+        Which octave is chosen matters as much as that it is raised: each
+        chord takes the octave whose root sits closest to the previous chord's
+        root. Otherwise the progression leaps by up to an octave between
+        neighbours, and the smooth connections that ChordProgression works to
+        find are thrown away at the last step.
+
+        Applied after the passing chords are inserted, so they are placed by
+        the same rule rather than being left behind in the bottom octave.
+        """
+
+        placed: list[Chord] = []
+
+        for chord in chords:
+            pitch_class = chord.root % 12
+            candidates = [
+                note
+                for note in range(self.low_note, self.high_note + 1)
+                if note % 12 == pitch_class
+            ]
+            if not candidates:
+                # The bed is narrower than an octave; fall back to the bottom.
+                candidates = [self.low_note + ((pitch_class - self.low_note) % 12)]
+
+            if self._previous_root is None:
+                # Start near the middle, leaving room to move either way.
+                target = (self.low_note + self.high_note) // 2
+            else:
+                target = self._previous_root
+            root = min(candidates, key=lambda note: (abs(note - target), note))
+
+            shifted = root + self.octave_offset * 12
+            root = max(0, min(shifted, 127))
+            self._previous_root = root
+            placed.append(Chord(root=root, chord_type=chord.chord_type))
+
+        return placed
 
     def find_note_and_mode_for_nebulas(self):
         """Compatibility helper for callers using the former staged API."""
