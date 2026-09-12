@@ -36,7 +36,7 @@
     "shuffle": true,
     "small_low_note": 67,
     "small_high_note": 91,
-    "small_duration_beats": 0.5,
+    "small_duration_beats": 1,
     "small_channel": 3,
     "big_low_note": 48,
     "big_high_note": 67,
@@ -47,14 +47,14 @@
   "transport": {
     "send_clock": true,
     "send_song_position": true,
-    "grid_subdivision": 4,
-    "quantise_strength": 1.0,
+    "grid_subdivision": 1,
+    "quantise_strength": 0.5,
     "fit_stars_to_chord": true,
     "count_in_beats": 4.0,
     "notes_per_slice": 1,
     "star_duration_scale": 1.0,
-    "min_note_spacing_beats": 2.0,
-    "spacing_variation_beats": 1.5
+    "min_note_spacing_beats": 0.0,
+    "spacing_variation_beats": 0.0
   },
   "tempo": {
     "bpm": 90,
