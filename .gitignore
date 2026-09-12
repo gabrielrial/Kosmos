@@ -15,6 +15,7 @@ output/
 *.jpg
 *.png
 *.wav
+*.mid
 # *.mid  (los renders van a output/, ya ignorado)
 soundfonts/
 *.sf2
