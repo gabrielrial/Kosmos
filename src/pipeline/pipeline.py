@@ -27,7 +27,6 @@ from midi.transport import MidiClock, Sequencer, TimedEvent, Transport, panic
 from models.images import Images
 from models.nebula import Nebula, NebulaMidi
 from models.star import Stars
-from setup.midi import MidiSetup
 
 
 class ImageToMidi:
@@ -65,6 +64,9 @@ class ImageToMidi:
             [],
             self.nebulas,
             total_duration_beats=self.config.harmony.nebula_total_duration_beats,
+            low_note=self.config.harmony.chord_low_note,
+            high_note=self.config.harmony.chord_high_note,
+            octave_offset=self.config.harmony.octave_offset,
         ).process()
 
         stars_config = self.config.stars
@@ -132,6 +134,11 @@ class ImageToMidi:
         return timeline
 
     def play(self, timeline: list[TimedEvent]) -> None:
+        # Imported here, not at module scope: --mode file writes a .mid
+        # without touching a port, and should not require a MIDI backend to
+        # be installed at all.
+        from setup.midi import MidiSetup
+
         midi = MidiSetup(self.config).init()
         stars_port = midi.midi_devices.get_port("kosmos_stars")
         nebula_port = midi.midi_devices.get_port("kosmos_nebula")
