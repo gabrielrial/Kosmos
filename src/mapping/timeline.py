@@ -122,6 +122,7 @@ class TimelineBuilder:
         duration_scale: float = 1.0,
         min_spacing: float = 0.0,
         spacing_variation: float = 0.0,
+        chord_roll: float = 0.0,
     ) -> None:
         self.total_beats = total_beats
         self.grid = grid
@@ -131,6 +132,7 @@ class TimelineBuilder:
         self.duration_scale = duration_scale
         self.min_spacing = min_spacing
         self.spacing_variation = spacing_variation
+        self.chord_roll = chord_roll
         self.spans: list[ChordSpan] = []
         self.dropped = 0
 
@@ -154,10 +156,17 @@ class TimelineBuilder:
         order = 0
 
         for span in self.spans:
-            for note in span.notes:
+            # Struck lowest first, a little apart, the way a hand plays a
+            # chord. All three notes landing on the same instant is what makes
+            # the harmony sound mechanical.
+            for position, note in enumerate(sorted(span.notes)):
+                offset = min(
+                    position * self.chord_roll,
+                    max(span.end_beat - span.start_beat - self.grid, 0.0),
+                )
                 timeline.append(
                     TimedEvent(
-                        beat=span.start_beat,
+                        beat=span.start_beat + offset,
                         order=order,
                         message=Message(
                             "note_on",

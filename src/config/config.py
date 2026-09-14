@@ -189,6 +189,16 @@ class TransportConfig:
                         and therefore no restriction at all
     count_in_beats      silence before the first event, so a DAW locking to
                         the clock has time to catch up
+    chord_roll_beats    how far apart the notes of a chord are struck,
+                        lowest first. A chord whose notes all start on the
+                        same instant sounds like a machine pressing three
+                        keys; rolling them is what a hand does. Scaled by
+                        chord_roll_density below, so 0 disables it
+    chord_roll_dense    the roll used on a crowded sky, as a fraction of
+                        chord_roll_beats. Star density spans 26 to 2,690
+                        sources per megapixel across the sample set — a 102x
+                        spread, the widest signal the image offers. A dense
+                        field plays tighter, an empty one more spread out
     target_minutes      how long the piece should run. The image is played
                         again and again until this is reached, and each pass
                         re-shuffles the nebula colours, so the chords come out
@@ -224,6 +234,8 @@ class TransportConfig:
     count_in_beats: float = 4.0
     notes_per_slice: int = 1
     star_duration_scale: float = 1.0
+    chord_roll_beats: float = 0.0
+    chord_roll_dense: float = 0.25
     target_minutes: float = 0.0
     min_note_spacing_beats: float = 0.0
     spacing_variation_beats: float = 0.0
@@ -430,6 +442,14 @@ class Config:
         check(
             transport.star_duration_scale > 0,
             "transport.star_duration_scale must be positive",
+        )
+        check(
+            transport.chord_roll_beats >= 0,
+            "transport.chord_roll_beats cannot be negative",
+        )
+        check(
+            0 <= transport.chord_roll_dense <= 1,
+            "transport.chord_roll_dense must be between 0 and 1",
         )
         check(
             transport.target_minutes >= 0,
