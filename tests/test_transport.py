@@ -743,3 +743,104 @@ class NoteSpacingTest(unittest.TestCase):
         self.assertTrue(lengths)
         for length in lengths:
             self.assertAlmostEqual(length, 0.5, places=6)
+
+
+class CycleTest(unittest.TestCase):
+    """Each pass over the image must produce a different progression."""
+
+    def nebula(self):
+        from models.color import Color
+        from models.nebula import Nebula
+
+        return Nebula(
+            x=100, y=200, width=50, height=50, area=2500, area_frac=0.05,
+            density=0.8, elongation=1.0, brightness=0.6, hue=0.1,
+            saturation=0.5, contrast=20.0,
+            dominant_colors=[
+                Color(hue=h, saturation=0.5, brightness=b, weight=0.2)
+                for h, b in (
+                    (0.0, 0.7), (0.3, 0.3), (0.6, 0.8), (0.45, 0.2), (0.1, 0.6)
+                )
+            ],
+        )
+
+    def progression(self, cycle):
+        import tempfile
+
+        from midi.midi_nebulas import NebulasMidiFactory
+
+        with tempfile.TemporaryDirectory() as name:
+            factory = NebulasMidiFactory(
+                [], [self.nebula()], total_duration_beats=64.0,
+                low_note=48, high_note=72, min_chord_beats=4.0,
+                output_dir=name, cycle=cycle,
+            )
+            nebulas = factory.process(write_report=False)
+        return [tuple(chord.chord_maker()) for chord in nebulas[0].chords]
+
+    def test_different_cycles_give_different_progressions(self):
+        seen = {tuple(self.progression(cycle)) for cycle in range(6)}
+        self.assertGreater(len(seen), 1, "every cycle produced the same chords")
+
+    def test_the_same_cycle_is_reproducible(self):
+        """Re-shuffling has to stay deterministic, or a render cannot repeat."""
+
+        self.assertEqual(self.progression(3), self.progression(3))
+
+    def test_every_cycle_uses_the_image_pitch_classes(self):
+        """Re-ordering must not invent harmony the image does not contain."""
+
+        allowed = set()
+        for cycle in range(4):
+            for chord in self.progression(cycle):
+                allowed.update(note % 12 for note in chord)
+        self.assertLessEqual(
+            len(allowed), 12, "pitch classes should come from the colours"
+        )
+
+    def test_chords_stay_in_the_bed_on_every_cycle(self):
+        for cycle in range(5):
+            for chord in self.progression(cycle):
+                for note in chord:
+                    self.assertTrue(48 <= note <= 72, f"{note} escaped the bed")
+
+
+class TruncationTest(unittest.TestCase):
+    """Cutting the piece at the target must not leave a note sounding."""
+
+    def timeline(self):
+        from midi.messages import Message
+
+        events = []
+        order = 0
+        for beat in (0.0, 10.0, 20.0, 30.0):
+            events.append(
+                TimedEvent(beat=beat, order=order,
+                           message=Message("note_on", note=60, velocity=90, channel=3),
+                           label="star_on")
+            )
+            order += 1
+            events.append(
+                TimedEvent(beat=beat + 8.0, order=order,
+                           message=Message("note_off", note=60, velocity=0, channel=3),
+                           label="star_off")
+            )
+            order += 1
+        return sorted(events)
+
+    def test_notes_crossing_the_cut_are_released_at_the_limit(self):
+        from pipeline.pipeline import ImageToMidi
+
+        cut = ImageToMidi._truncate(self.timeline(), 25.0)
+        self.assertEqual(
+            TimelineBuilder.check(cut),
+            {"hanging_notes": 0, "unmatched_note_offs": 0},
+        )
+        self.assertLessEqual(max(event.beat for event in cut), 25.0)
+
+    def test_nothing_starts_after_the_limit(self):
+        from pipeline.pipeline import ImageToMidi
+
+        cut = ImageToMidi._truncate(self.timeline(), 15.0)
+        starts = [e.beat for e in cut if e.label == "star_on"]
+        self.assertTrue(all(beat < 15.0 for beat in starts))
