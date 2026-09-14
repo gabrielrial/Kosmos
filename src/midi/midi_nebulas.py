@@ -27,6 +27,7 @@ class NebulasMidiFactory:
         octave_offset: int = 0,
         min_chord_beats: float = 0.0,
         output_dir: str = ".",
+        cycle: int = 0,
     ):
         self.nebulas: list[Nebula] = nebulas
         self.midi_factory = MidiFactory()
@@ -39,13 +40,18 @@ class NebulasMidiFactory:
         self.octave_offset = octave_offset
         self.min_chord_beats = min_chord_beats
         self.output_dir = output_dir
+        # Which pass through the image this is. It only enters the shuffle
+        # seed, so every cycle deals the same colours in a different order and
+        # therefore builds a different progression, while any given cycle
+        # stays reproducible.
+        self.cycle = cycle
         # Voice leading carries across nebulae: the boundary between two of
         # them is a chord change like any other, and resetting here would put
         # an octave leap at every seam.
         self._previous_root: int | None = None
         self._passing: dict[int, list[bool]] = {}
 
-    def process(self):
+    def process(self, write_report: bool = True):
         report: list[str] = []
         for nebula in self.nebulas:
             midi_nebula, original_chords, original_durations = self._build_nebula(nebula)
@@ -55,14 +61,15 @@ class NebulasMidiFactory:
                     nebula, original_chords, original_durations, midi_nebula
                 )
             )
-        self._write_report(report)
+        if write_report:
+            self._write_report(report)
         return self.nebulas_midi
 
     def _build_nebula(
         self, nebula: Nebula
     ) -> tuple[NebulaMidi, list[Chord], list[float]]:
         colors = list(nebula.dominant_colors[:5])
-        seed = f"{nebula.x}:{nebula.y}:{nebula.area}"
+        seed = f"{nebula.x}:{nebula.y}:{nebula.area}:{self.cycle}"
         random.Random(seed).shuffle(colors)
         midi_nebula = NebulaMidi()
         for color in colors:
