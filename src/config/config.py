@@ -189,6 +189,11 @@ class TransportConfig:
                         and therefore no restriction at all
     count_in_beats      silence before the first event, so a DAW locking to
                         the clock has time to catch up
+    target_minutes      how long the piece should run. The image is played
+                        again and again until this is reached, and each pass
+                        re-shuffles the nebula colours, so the chords come out
+                        in a different order every time and the piece never
+                        repeats itself exactly. 0 plays a single pass
     min_note_spacing_beats  a layer's notes are pulled apart until at least
                         this much separates consecutive attacks. Quantising
                         alone puts everything on the same grid: measured, 645
@@ -219,6 +224,7 @@ class TransportConfig:
     count_in_beats: float = 4.0
     notes_per_slice: int = 1
     star_duration_scale: float = 1.0
+    target_minutes: float = 0.0
     min_note_spacing_beats: float = 0.0
     spacing_variation_beats: float = 0.0
 
@@ -424,6 +430,10 @@ class Config:
         check(
             transport.star_duration_scale > 0,
             "transport.star_duration_scale must be positive",
+        )
+        check(
+            transport.target_minutes >= 0,
+            "transport.target_minutes cannot be negative",
         )
         check(
             transport.min_note_spacing_beats >= 0,
