@@ -111,6 +111,7 @@ class ImageToMidi:
             duration_scale=transport_config.star_duration_scale,
             min_spacing=transport_config.min_note_spacing_beats,
             spacing_variation=transport_config.spacing_variation_beats,
+            chord_roll=self._chord_roll(),
         )
         timeline = builder.build(
             spans,
@@ -125,6 +126,38 @@ class ImageToMidi:
             self.spans = spans
         length = spans[-1].end_beat if spans else 0.0
         return timeline, length, len(small) + len(big), len(spans)
+
+    def _chord_roll(self) -> float:
+        """How far apart to strike the notes of a chord, from the image.
+
+        Star density is the widest signal the image gives — 26 to 2,690
+        sources per megapixel across the sample set. A crowded sky plays
+        tighter, an empty one lets the chord spread out, so the same setting
+        produces a different touch for a different photograph.
+
+        The scale is logarithmic because density is: the step from 26 to 260
+        is as meaningful as the one from 260 to 2,600.
+        """
+
+        import math
+
+        transport = self.config.transport
+        if transport.chord_roll_beats <= 0:
+            return 0.0
+
+        density = max(self.stars.density_per_megapixel, 1.0)
+        # 30 to 3,000 covers the measured range; outside it the value clamps.
+        position = (math.log10(density) - math.log10(30.0)) / (
+            math.log10(3000.0) - math.log10(30.0)
+        )
+        position = min(max(position, 0.0), 1.0)
+        loose, tight = 1.0, transport.chord_roll_dense
+        roll = transport.chord_roll_beats * (loose + position * (tight - loose))
+        print(
+            f"[Compose] chord roll {roll:.3f} beats "
+            f"({density:.0f} sources/Mpx)"
+        )
+        return roll
 
     def compose(self) -> list[TimedEvent]:
         """Measurements to one ordered timeline. Pure: no ports, no threads."""
@@ -189,7 +222,7 @@ class ImageToMidi:
         """
 
         kept: list[TimedEvent] = []
-        open_notes: dict[tuple[int, int], TimedEvent] = {}
+        open_notes: dict[tuple[int, int], int] = {}
         for event in sorted(timeline):
             message = event.message
             if event.beat >= limit:
@@ -199,23 +232,28 @@ class ImageToMidi:
                 continue
             key = (message.channel, message.note)
             if message.type == "note_on":
-                open_notes[key] = event
-            else:
-                open_notes.pop(key, None)
+                # Count, not set: the same pitch can be struck again on the
+                # same channel before the first one is released — two big
+                # stars an octave apart resolve to the same note, and their
+                # two-beat lengths overlap. Each one still needs its own off.
+                open_notes[key] = open_notes.get(key, 0) + 1
+            elif open_notes.get(key):
+                open_notes[key] -= 1
 
         order = max((event.order for event in kept), default=0)
-        for (channel, note) in open_notes:
-            order += 1
-            kept.append(
-                TimedEvent(
-                    beat=limit,
-                    order=order,
-                    message=Message(
-                        "note_off", note=note, velocity=0, channel=channel
-                    ),
-                    label="truncated_off",
+        for (channel, note), count in open_notes.items():
+            for _ in range(count):
+                order += 1
+                kept.append(
+                    TimedEvent(
+                        beat=limit,
+                        order=order,
+                        message=Message(
+                            "note_off", note=note, velocity=0, channel=channel
+                        ),
+                        label="truncated_off",
+                    )
                 )
-            )
         return kept
 
     def play(self, timeline: list[TimedEvent]) -> None:

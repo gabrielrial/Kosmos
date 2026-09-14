@@ -844,3 +844,80 @@ class TruncationTest(unittest.TestCase):
         cut = ImageToMidi._truncate(self.timeline(), 15.0)
         starts = [e.beat for e in cut if e.label == "star_on"]
         self.assertTrue(all(beat < 15.0 for beat in starts))
+
+
+class ChordRollTest(unittest.TestCase):
+    """A chord whose notes all start together sounds like a machine."""
+
+    def spans(self, duration=8.0):
+        nebula = NebulaMidi()
+        nebula.chords.append(Chord(root=60, chord_type=ChordType.MAJOR))
+        nebula.duration.append(duration)
+        return chord_spans([nebula])
+
+    def onsets(self, roll, duration=8.0):
+        builder = TimelineBuilder(total_beats=16.0, grid=0.25, chord_roll=roll)
+        timeline = builder.build(self.spans(duration), [], image_height=10)
+        return sorted(e.beat for e in timeline if e.label == "chord_on")
+
+    def test_without_roll_every_note_starts_together(self):
+        self.assertEqual(len(set(self.onsets(0.0))), 1)
+
+    def test_with_roll_the_notes_are_staggered(self):
+        onsets = self.onsets(0.25)
+        self.assertEqual(len(set(onsets)), 3, "each chord tone needs its own onset")
+        self.assertAlmostEqual(onsets[1] - onsets[0], 0.25)
+        self.assertAlmostEqual(onsets[2] - onsets[1], 0.25)
+
+    def test_the_lowest_note_is_struck_first(self):
+        builder = TimelineBuilder(total_beats=16.0, grid=0.25, chord_roll=0.25)
+        timeline = builder.build(self.spans(), [], image_height=10)
+        ons = sorted(
+            ((e.beat, e.message.note) for e in timeline if e.label == "chord_on"),
+        )
+        notes = [note for _, note in ons]
+        self.assertEqual(notes, sorted(notes), "the roll should run upwards")
+
+    def test_a_short_chord_does_not_roll_past_its_own_end(self):
+        """Otherwise a note would start after its own note_off."""
+
+        onsets = self.onsets(0.5, duration=0.5)
+        self.assertTrue(all(beat < 0.5 for beat in onsets))
+
+    def test_rolled_chords_stay_balanced(self):
+        builder = TimelineBuilder(total_beats=16.0, grid=0.25, chord_roll=0.25)
+        timeline = builder.build(self.spans(0.4), [], image_height=10)
+        self.assertEqual(
+            TimelineBuilder.check(timeline),
+            {"hanging_notes": 0, "unmatched_note_offs": 0},
+        )
+
+
+class RepeatedPitchTruncationTest(unittest.TestCase):
+    """Two stars can resolve to the same note and overlap on one channel."""
+
+    def test_each_overlapping_note_gets_its_own_release(self):
+        from midi.messages import Message
+        from pipeline.pipeline import ImageToMidi
+
+        events = [
+            TimedEvent(beat=1.0, order=0,
+                       message=Message("note_on", note=63, velocity=90, channel=5),
+                       label="star_on"),
+            TimedEvent(beat=2.0, order=1,
+                       message=Message("note_on", note=63, velocity=90, channel=5),
+                       label="star_on"),
+            TimedEvent(beat=9.0, order=2,
+                       message=Message("note_off", note=63, velocity=0, channel=5),
+                       label="star_off"),
+            TimedEvent(beat=10.0, order=3,
+                       message=Message("note_off", note=63, velocity=0, channel=5),
+                       label="star_off"),
+        ]
+        cut = ImageToMidi._truncate(events, 5.0)
+        offs = [e for e in cut if e.message.type == "note_off"]
+        self.assertEqual(len(offs), 2, "both overlapping notes need releasing")
+        self.assertEqual(
+            TimelineBuilder.check(cut),
+            {"hanging_notes": 0, "unmatched_note_offs": 0},
+        )
