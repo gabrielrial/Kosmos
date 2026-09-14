@@ -149,6 +149,7 @@ class StarDetector:
             stars.append(star)
 
         result = self._split(stars, rejected)
+        result.density_per_megapixel = len(result) / max(frame_area / 1e6, 1e-9)
         self._report(result, count)
         if self.save_previews:
             self._save_preview(result)
@@ -273,6 +274,9 @@ class StarDetector:
             f"{len(stars.small_stars)} small, {len(stars.big_stars)} big "
             f"(flux split at {stars.flux_split:.0f}); "
             f"rejected {len(stars.rejected)} as not point-like"
+        )
+        print(
+            f"[Stars] density {stars.density_per_megapixel:.0f} sources per megapixel"
         )
         if stars.big_stars:
             colours = [star.color_index for star in stars.all]
