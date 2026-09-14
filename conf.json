@@ -51,6 +51,8 @@
     "quantise_strength": 0.5,
     "fit_stars_to_chord": true,
     "count_in_beats": 4.0,
+    "chord_roll_beats": 0.25,
+    "chord_roll_dense": 0.25,
     "target_minutes": 20.0,
     "notes_per_slice": 1,
     "star_duration_scale": 1.0,
